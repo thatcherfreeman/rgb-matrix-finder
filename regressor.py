@@ -50,17 +50,19 @@ class glass(nn.Module):
     # Model the change from src_img to ref_img as ref = A@src + b
     # A and b unknown, A \in R^3x3 and b \in R^3
 
-    def __init__(self):
+    def __init__(self, bias_1d=True):
         super().__init__()
         self.mat = nn.Linear(3, 3, bias=False)
-        self.bias = nn.parameter.Parameter(torch.tensor(0.))
+        if bias_1d:
+            self.bias = nn.parameter.Parameter(torch.tensor(0.))
+        else:
+            self.bias = nn.parameter.Parameter(torch.tensor([0., 0., 0.,]))
 
     def forward(self, x):
         return self.mat(x + self.bias)
 
     def print_weights(self):
         print("Pre-bias: ", self.bias.data.detach().cpu().numpy())
-        # print("Bias: ", self.mat.bias.detach().cpu().numpy())
         print("matrix: ", self.mat.weight.detach().cpu().numpy())
 
 
@@ -69,17 +71,16 @@ class glass(nn.Module):
 ref = input("target image file path: ")
 src = input("source image file path: ")
 
-# ref = "reference_no_filter0000.exr"
-# src = "nd_polarizer0000.exr"
-
 ref_img = read_exr(ref)
 src_img = read_exr(src)
 
 ref_samples = get_samples(ref_img)
 src_samples = get_samples(src_img)
 
-# ref_samples = ref_img
-# src_samples = src_img
+sample_weights = np.ones_like(ref_samples)
+
+# Eliminate the impact of specific samples like so:
+# sample_weights[0, 3, :] *= 0
 
 # Compute initial error
 print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_img) - flatten(src_img))))
@@ -92,6 +93,7 @@ else:
 ds = TensorDataset(
     torch.tensor(flatten(src_samples), device=device, dtype=torch.float32),
     torch.tensor(flatten(ref_samples), device=device, dtype=torch.float32),
+    torch.tensor(flatten(sample_weights), device=device, dtype=torch.float32),
 )
 
 dl = DataLoader(ds, batch_size=min(100, len(ds)))
@@ -101,16 +103,17 @@ optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 
 epochs = int(max(1, 200000 / len(ds)))
-loss_fn = lambda y, y_pred: torch.mean((torch.log(1 + y_pred) - torch.log(1 + y))**2)
+loss_fn = lambda y, y_pred, weights: torch.mean(weights * (torch.log(1 + y_pred) - torch.log(1 + y))**2)
 
 with tqdm(total=epochs) as pbar:
     for e in range(epochs):
-        for x, y in dl:
+        for x, y, weight in dl:
             x = x.to(device)
             y = y.to(device)
+            weight = weight.to(device)
             optimizer.zero_grad()
             output = model(x)
-            loss = loss_fn(output, y)
+            loss = loss_fn(output, y, weight)
             loss.backward()
             optimizer.step()
 
