@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import Imath
 import array
 from tqdm import tqdm
+from argparse import ArgumentParser
 
 
 def read_exr(filepath):
@@ -65,72 +66,92 @@ class glass(nn.Module):
         print("Pre-bias: ", self.bias.data.detach().cpu().numpy())
         print("matrix: ", self.mat.weight.detach().cpu().numpy())
 
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help="Original image to apply rgb matrix to.",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Reference color chart that we're going to match to.",
+    )
+    parser.add_argument(
+        "--bias3d",
+        action="store_true",
+        default=False,
+        help="Include this flag if you want to apply a colored offset to the result, after the matrix."
+    )
+    args = parser.parse_args()
 
+    # Want to find transformation that converts src to ref.
+    ref = input("target image file path: ") if args.target is None else args.target
+    src = input("source image file path: ") if args.source is None else args.source
 
-# Want to find transformation that converts src to ref.
-ref = input("target image file path: ")
-src = input("source image file path: ")
+    ref_img = read_exr(ref)
+    src_img = read_exr(src)
 
-ref_img = read_exr(ref)
-src_img = read_exr(src)
+    ref_samples = get_samples(ref_img)
+    src_samples = get_samples(src_img)
 
-ref_samples = get_samples(ref_img)
-src_samples = get_samples(src_img)
+    sample_weights = np.ones_like(ref_samples)
 
-sample_weights = np.ones_like(ref_samples)
+    # Eliminate the impact of specific samples like so:
+    # sample_weights[0, 3, :] *= 0
 
-# Eliminate the impact of specific samples like so:
-# sample_weights[0, 3, :] *= 0
+    # Compute initial error
+    print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_img) - flatten(src_img))))
 
-# Compute initial error
-print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_img) - flatten(src_img))))
+    if torch.cuda.is_available():
+        device = torch.device('cuda:0')
+    else:
+        device = torch.device('cpu')
 
-if torch.cuda.is_available():
-    device = torch.device('cuda:0')
-else:
-    device = torch.device('cpu')
+    ds = TensorDataset(
+        torch.tensor(flatten(src_samples), device=device, dtype=torch.float32),
+        torch.tensor(flatten(ref_samples), device=device, dtype=torch.float32),
+        torch.tensor(flatten(sample_weights), device=device, dtype=torch.float32),
+    )
 
-ds = TensorDataset(
-    torch.tensor(flatten(src_samples), device=device, dtype=torch.float32),
-    torch.tensor(flatten(ref_samples), device=device, dtype=torch.float32),
-    torch.tensor(flatten(sample_weights), device=device, dtype=torch.float32),
-)
+    dl = DataLoader(ds, batch_size=min(100, len(ds)))
 
-dl = DataLoader(ds, batch_size=min(100, len(ds)))
+    model = glass(bias_1d=not args.bias3d).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
 
-model = glass().to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+    def relu_log(x: torch.Tensor) -> torch.Tensor:
+        # Log x, but transition to y = x - 1 at x <= 1
+        mask = x > 1
+        x[mask] = torch.log(x[mask])
+        x[~mask] -= 1
+        return x
 
-def relu_log(x: torch.Tensor) -> torch.Tensor:
-    # Log x, but transition to y = x - 1 at x <= 1
-    mask = x > 1
-    x[mask] = torch.log(x[mask])
-    x[~mask] -= 1
-    return x
+    epochs = int(max(1, 200000 / len(ds)))
+    loss_fn = lambda y, y_pred, weights: torch.mean(weights * (relu_log(1 + y_pred) - relu_log(1 + y))**2)
 
-epochs = int(max(1, 500000 / len(ds)))
-loss_fn = lambda y, y_pred, weights: torch.mean(weights * (relu_log(1 + y_pred) - relu_log(1 + y))**2)
+    with tqdm(total=epochs) as pbar:
+        for e in range(epochs):
+            for x, y, weight in dl:
+                x = x.to(device)
+                y = y.to(device)
+                weight = weight.to(device)
+                optimizer.zero_grad()
+                output = model(x)
+                loss = loss_fn(output, y, weight)
+                loss.backward()
+                optimizer.step()
 
-with tqdm(total=epochs) as pbar:
-    for e in range(epochs):
-        for x, y, weight in dl:
-            x = x.to(device)
-            y = y.to(device)
-            weight = weight.to(device)
-            optimizer.zero_grad()
-            output = model(x)
-            loss = loss_fn(output, y, weight)
-            loss.backward()
-            optimizer.step()
+                err = torch.mean(torch.abs(output - y)).detach().cpu().numpy()
+                pbar.set_postfix(error=err)
+            pbar.update(1)
 
-            err = torch.mean(torch.abs(output - y)).detach().cpu().numpy()
-            pbar.set_postfix(error=err)
-        pbar.update(1)
+    model.print_weights()
 
-model.print_weights()
+    model.eval()
 
-model.eval()
-
-with torch.no_grad():
-    transformed_src_img = model(torch.tensor(flatten(src_img), device=device, dtype=torch.float32)).detach().cpu().numpy()
-    print("Final mean ABS error: ", np.mean(np.abs(flatten(ref_img) - transformed_src_img)))
+    with torch.no_grad():
+        transformed_src_img = model(torch.tensor(flatten(src_img), device=device, dtype=torch.float32)).detach().cpu().numpy()
+        print("Final mean ABS error: ", np.mean(np.abs(flatten(ref_img) - transformed_src_img)))
