@@ -99,11 +99,17 @@ ds = TensorDataset(
 dl = DataLoader(ds, batch_size=min(100, len(ds)))
 
 model = glass().to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+def relu_log(x: torch.Tensor) -> torch.Tensor:
+    # Log x, but transition to y = x - 1 at x <= 1
+    mask = x > 1
+    x[mask] = torch.log(x[mask])
+    x[~mask] -= 1
+    return x
 
-epochs = int(max(1, 200000 / len(ds)))
-loss_fn = lambda y, y_pred, weights: torch.mean(weights * (torch.log(1 + y_pred) - torch.log(1 + y))**2)
+epochs = int(max(1, 500000 / len(ds)))
+loss_fn = lambda y, y_pred, weights: torch.mean(weights * (relu_log(1 + y_pred) - relu_log(1 + y))**2)
 
 with tqdm(total=epochs) as pbar:
     for e in range(epochs):
