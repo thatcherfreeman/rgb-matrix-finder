@@ -2,32 +2,26 @@ import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
-import OpenEXR
 import cv2
 import matplotlib.pyplot as plt
-import Imath
-import array
 from tqdm import tqdm
 from argparse import ArgumentParser
+import os
 
 
-def read_exr(filepath):
-    file = OpenEXR.InputFile(filepath)
-
-    # Compute the size
-    dw = file.header()['dataWindow']
-    width = dw.max.x - dw.min.x + 1
-    height = dw.max.y - dw.min.y + 1
-    sz = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
-
-    # Read the three color channels as 32-bit floats
-    FLOAT = Imath.PixelType(Imath.PixelType.FLOAT)
-    img = np.stack([array.array('f', file.channel(Chan, FLOAT)).tolist() for Chan in ("R", "G", "B")], axis=1)
-    img = np.reshape(img, (height, width, 3), order='C')
+def open_image(image_fn: str) -> np.ndarray:
+    os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+    img: np.ndarray = cv2.imread(image_fn, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+    print(f"Read image data type of {img.dtype}")
+    if img.dtype == np.uint8 or img.dtype == np.uint16:
+        img = img.astype(np.float32) / np.iinfo(img.dtype).max
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
+
 
 def flatten(img):
     return np.reshape(img, (img.shape[0] * img.shape[1], img.shape[2]))
+
 
 def sample_image(img, x, y, radius=5):
     # Samples a (2*radius, 2*radius) box of pixels surrounding the point (x,y) in the image. 0 < x, y < 1
@@ -66,55 +60,17 @@ class glass(nn.Module):
         print("Pre-bias: ", self.bias.data.detach().cpu().numpy())
         print("matrix: ", self.mat.weight.detach().cpu().numpy())
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--source",
-        type=str,
-        default=None,
-        help="Original image to apply rgb matrix to.",
-    )
-    parser.add_argument(
-        "--target",
-        type=str,
-        default=None,
-        help="Reference color chart that we're going to match to.",
-    )
-    parser.add_argument(
-        "--bias3d",
-        action="store_true",
-        default=False,
-        help="Include this flag if you want to apply a colored offset to the result, after the matrix."
-    )
-    args = parser.parse_args()
 
-    # Want to find transformation that converts src to ref.
-    ref = input("target image file path: ") if args.target is None else args.target
-    src = input("source image file path: ") if args.source is None else args.source
-
-    ref_img = read_exr(ref)
-    src_img = read_exr(src)
-
-    ref_samples = get_samples(ref_img)
-    src_samples = get_samples(src_img)
-
-    sample_weights = np.ones_like(ref_samples)
-
-    # Eliminate the impact of specific samples like so:
-    # sample_weights[0, 3, :] *= 0
-
-    # Compute initial error
-    print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_img) - flatten(src_img))))
-
+def fit_colors_gd(input_rgb, output_rgb, weights, args):
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else:
         device = torch.device('cpu')
 
     ds = TensorDataset(
-        torch.tensor(flatten(src_samples), device=device, dtype=torch.float32),
-        torch.tensor(flatten(ref_samples), device=device, dtype=torch.float32),
-        torch.tensor(flatten(sample_weights), device=device, dtype=torch.float32),
+        torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32),
+        torch.tensor(flatten(output_rgb), device=device, dtype=torch.float32),
+        torch.tensor(flatten(weights), device=device, dtype=torch.float32),
     )
 
     dl = DataLoader(ds, batch_size=min(100, len(ds)))
@@ -149,9 +105,50 @@ if __name__ == "__main__":
             pbar.update(1)
 
     model.print_weights()
-
     model.eval()
-
     with torch.no_grad():
         transformed_src_img = model(torch.tensor(flatten(src_img), device=device, dtype=torch.float32)).detach().cpu().numpy()
         print("Final mean ABS error: ", np.mean(np.abs(flatten(ref_img) - transformed_src_img)))
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=None,
+        help="Original image to apply rgb matrix to.",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Reference color chart that we're going to match to.",
+    )
+    parser.add_argument(
+        "--bias3d",
+        action="store_true",
+        default=False,
+        help="Include this flag if you want to apply a colored offset to the result, after the matrix."
+    )
+    args = parser.parse_args()
+
+    # Want to find transformation that converts src to ref.
+    ref = input("target image file path: ") if args.target is None else args.target
+    src = input("source image file path: ") if args.source is None else args.source
+
+    ref_img = open_image(ref)
+    src_img = open_image(src)
+
+    ref_samples = get_samples(ref_img)
+    src_samples = get_samples(src_img)
+
+    sample_weights = np.ones_like(ref_samples)
+
+    # Eliminate the impact of specific samples like so:
+    # sample_weights[0, 3, :] *= 0
+
+    # Compute initial error
+    print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_samples) - flatten(src_samples))))
+
+    fit_colors_gd(src_samples, ref_samples, sample_weights, args)
