@@ -52,6 +52,10 @@ class glass(nn.Module):
             self.bias = nn.parameter.Parameter(torch.tensor(0.))
         else:
             self.bias = nn.parameter.Parameter(torch.tensor([0., 0., 0.,]))
+        self.init_weights()
+
+    def init_weights(self):
+        self.mat.weight.data = torch.eye(3)
 
     def forward(self, x):
         return self.mat(x + self.bias)
@@ -60,6 +64,40 @@ class glass(nn.Module):
         print("Pre-bias: ", self.bias.data.detach().cpu().numpy())
         print("matrix: ", self.mat.weight.detach().cpu().numpy())
 
+
+def fit_colors_ls(input_rgb, output_rgb, weights, args):
+    # TODO: Support a bias term.
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb) # (24, 3)
+
+    mat = np.linalg.lstsq(input_rgb_flat, output_rgb_flat)[0]
+    print(mat.T)
+    print("initial error: ", np.mean(np.abs(input_rgb_flat - output_rgb_flat)))
+    print("error: ", np.mean(np.abs((input_rgb_flat @ mat) - output_rgb_flat)))
+
+
+def fit_colors_wppls(input_rgb, output_rgb, weights, args):
+    # TODO: White normalize input and output rgbs.
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb) # (24, 3)
+    u = np.ones((3, 1))
+    N = input_rgb_flat
+    mat = np.zeros((3, 3))
+    for i in range(mat.shape[1]):
+        v = output_rgb_flat[:, [i]]
+        ntn = N.T @ N
+        ntn_inv = np.linalg.pinv(ntn)
+        ntn_inv_u = ntn_inv @ u
+        c = ntn_inv @ N.T @ v
+        coeff = (1 - v.T @ N @ ntn_inv_u) / (u.T @ ntn_inv_u)
+        c += coeff * ntn_inv_u
+        assert c.shape == (3, 1)
+        mat[:, [i]] = c
+
+    print(mat.T)
+    print("initial error: ", np.mean(np.abs(input_rgb_flat - output_rgb_flat)))
+    print("error: ", np.mean(np.abs((input_rgb_flat @ mat) - output_rgb_flat)))
+    print(np.sum(mat.T, axis=1))
 
 def fit_colors_gd(input_rgb, output_rgb, weights, args):
     if torch.cuda.is_available():
@@ -107,8 +145,8 @@ def fit_colors_gd(input_rgb, output_rgb, weights, args):
     model.print_weights()
     model.eval()
     with torch.no_grad():
-        transformed_src_img = model(torch.tensor(flatten(src_img), device=device, dtype=torch.float32)).detach().cpu().numpy()
-        print("Final mean ABS error: ", np.mean(np.abs(flatten(ref_img) - transformed_src_img)))
+        transformed_src_img = model(torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32)).detach().cpu().numpy()
+        print("Final mean ABS error: ", np.mean(np.abs(flatten(output_rgb) - transformed_src_img)))
 
 
 if __name__ == "__main__":
@@ -131,11 +169,18 @@ if __name__ == "__main__":
         default=False,
         help="Include this flag if you want to apply a colored offset to the result, after the matrix."
     )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default=None,
+        help="Specify the method to match the two sets of colors. Options are: {gd, ls, wp}, ls is default"
+    )
     args = parser.parse_args()
 
     # Want to find transformation that converts src to ref.
     ref = input("target image file path: ") if args.target is None else args.target
     src = input("source image file path: ") if args.source is None else args.source
+    method = input("method {gd, ls, wp}: ") if args.method is None else args.method
 
     ref_img = open_image(ref)
     src_img = open_image(src)
@@ -151,4 +196,11 @@ if __name__ == "__main__":
     # Compute initial error
     print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_samples) - flatten(src_samples))))
 
-    fit_colors_gd(src_samples, ref_samples, sample_weights, args)
+    if method == "ls":
+        fit_colors = fit_colors_ls
+    elif method == "gd":
+        fit_colors = fit_colors_gd
+    elif method == "wp":
+        fit_colors = fit_colors_wppls
+
+    fit_colors(src_samples, ref_samples, sample_weights, args)
