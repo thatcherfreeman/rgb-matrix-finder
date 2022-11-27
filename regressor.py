@@ -77,14 +77,18 @@ def fit_colors_ls(input_rgb, output_rgb, weights, args):
 
 
 def fit_colors_wppls(input_rgb, output_rgb, weights, args):
-    # TODO: White normalize input and output rgbs.
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb) # (24, 3)
+
+    # TODO: figure out if we need this white patch normalizing step.
+    white_patch_idx = np.argmax(np.mean(output_rgb_flat, axis=1))
+    print(f"white patch index: {white_patch_idx}", output_rgb_flat[white_patch_idx])
     u = np.ones((3, 1))
-    N = input_rgb_flat
+    N = input_rgb_flat / input_rgb_flat[[white_patch_idx], :]
+    M = output_rgb_flat / output_rgb_flat[[white_patch_idx], :]
     mat = np.zeros((3, 3))
     for i in range(mat.shape[1]):
-        v = output_rgb_flat[:, [i]]
+        v = M[:, [i]]
         ntn = N.T @ N
         ntn_inv = np.linalg.pinv(ntn)
         ntn_inv_u = ntn_inv @ u
@@ -96,6 +100,8 @@ def fit_colors_wppls(input_rgb, output_rgb, weights, args):
     print(mat.T)
     print("initial error: ", np.mean(np.abs(input_rgb_flat - output_rgb_flat)))
     print("error: ", np.mean(np.abs((input_rgb_flat @ mat) - output_rgb_flat)))
+    print("initial error: ", np.mean(np.abs(N, M)))
+    print("error: ", np.mean(np.abs((N @ mat) - M)))
     print(np.sum(mat.T, axis=1))
 
 def fit_colors_gd(input_rgb, output_rgb, weights, args):
