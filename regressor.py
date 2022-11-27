@@ -89,8 +89,7 @@ def fit_colors_wppls(input_rgb, output_rgb, weights, args):
         ntn_inv = np.linalg.pinv(ntn)
         ntn_inv_u = ntn_inv @ u
         c = ntn_inv @ N.T @ v
-        coeff = (1 - v.T @ N @ ntn_inv_u) / (u.T @ ntn_inv_u)
-        c += coeff * ntn_inv_u
+        c += (1 - v.T @ N @ ntn_inv_u) / (u.T @ ntn_inv_u) * ntn_inv_u
         assert c.shape == (3, 1)
         mat[:, [i]] = c
 
