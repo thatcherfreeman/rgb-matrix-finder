@@ -65,14 +65,14 @@ class glass(nn.Module):
         print("matrix: ", self.mat.weight.detach().cpu().numpy())
 
 
-def fit_colors_ls(input_rgb, output_rgb, weights, args):
+def fit_colors_ls(input_rgb, output_rgb, args):
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb) # (24, 3)
     mat = np.linalg.lstsq(input_rgb_flat, output_rgb_flat, rcond=None)[0]
     return mat.T, lambda x: x @ mat
 
 
-def fit_colors_wppls(input_rgb, output_rgb, weights, args):
+def fit_colors_wppls(input_rgb, output_rgb, args):
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb) # (24, 3)
 
@@ -101,7 +101,7 @@ def fit_colors_wppls(input_rgb, output_rgb, weights, args):
     mat2 = NT @ mat @ np.linalg.pinv(MT)
     return mat2.T, lambda x: x @ mat2
 
-def fit_colors_gd(input_rgb, output_rgb, weights, args):
+def fit_colors_gd(input_rgb, output_rgb, args):
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else:
@@ -110,7 +110,6 @@ def fit_colors_gd(input_rgb, output_rgb, weights, args):
     ds = TensorDataset(
         torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32),
         torch.tensor(flatten(output_rgb), device=device, dtype=torch.float32),
-        torch.tensor(flatten(weights), device=device, dtype=torch.float32),
     )
 
     dl = DataLoader(ds, batch_size=min(100, len(ds)))
@@ -126,17 +125,16 @@ def fit_colors_gd(input_rgb, output_rgb, weights, args):
         return x
 
     epochs = int(max(1, 200000 / len(ds)))
-    loss_fn = lambda y, y_pred, weights: torch.mean(weights * (relu_log(1 + y_pred) - relu_log(1 + y))**2)
+    loss_fn = lambda y, y_pred: torch.mean((relu_log(1 + y_pred) - relu_log(1 + y))**2)
 
     with tqdm(total=epochs) as pbar:
         for e in range(epochs):
-            for x, y, weight in dl:
+            for x, y in dl:
                 x = x.to(device)
                 y = y.to(device)
-                weight = weight.to(device)
                 optimizer.zero_grad()
                 output = model(x)
-                loss = loss_fn(output, y, weight)
+                loss = loss_fn(output, y)
                 loss.backward()
                 optimizer.step()
 
@@ -144,7 +142,6 @@ def fit_colors_gd(input_rgb, output_rgb, weights, args):
                 pbar.set_postfix(error=err)
             pbar.update(1)
 
-    model.print_weights()
     model.eval()
     return (model.mat.weight.data.detach().cpu().numpy(), model.bias.detach().cpu().numpy()), \
         lambda x: model(torch.tensor(x, device=device, dtype=torch.float32)).detach().cpu().numpy()
@@ -195,13 +192,6 @@ if __name__ == "__main__":
     ref_samples = get_samples(ref_img)
     src_samples = get_samples(src_img)
 
-    sample_weights = np.ones_like(ref_samples)
-
-    # Eliminate the impact of specific samples like so:
-    # sample_weights[0, 3, :] *= 0
-
-    # Compute initial error
-
     if method == "ls":
         fit_colors = fit_colors_ls
     elif method == "gd":
@@ -209,7 +199,7 @@ if __name__ == "__main__":
     elif method == "wp":
         fit_colors = fit_colors_wppls
 
-    parameters, model_func = fit_colors(src_samples, ref_samples, sample_weights, args)
+    parameters, model_func = fit_colors(src_samples, ref_samples, args)
     print("Initial mean ABS error: ", np.mean(np.abs(flatten(src_samples) - flatten(ref_samples))))
     print("Final mean ABS error: ", np.mean(np.abs(model_func(flatten(src_samples)) - flatten(ref_samples))))
     print("Initial MSE error: ", np.mean((flatten(src_samples) - flatten(ref_samples))**2))
