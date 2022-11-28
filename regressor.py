@@ -66,26 +66,27 @@ class glass(nn.Module):
 
 
 def fit_colors_ls(input_rgb, output_rgb, weights, args):
-    # TODO: Support a bias term.
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb) # (24, 3)
-
-    mat = np.linalg.lstsq(input_rgb_flat, output_rgb_flat)[0]
-    print(mat.T)
-    print("initial error: ", np.mean(np.abs(input_rgb_flat - output_rgb_flat)))
-    print("error: ", np.mean(np.abs((input_rgb_flat @ mat) - output_rgb_flat)))
+    mat = np.linalg.lstsq(input_rgb_flat, output_rgb_flat, rcond=None)[0]
+    return mat.T, lambda x: x @ mat
 
 
 def fit_colors_wppls(input_rgb, output_rgb, weights, args):
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb) # (24, 3)
 
-    # TODO: figure out if we need this white patch normalizing step.
-    white_patch_idx = np.argmax(np.mean(output_rgb_flat, axis=1))
-    print(f"white patch index: {white_patch_idx}", output_rgb_flat[white_patch_idx])
+    if args.enforce_whitepoint:
+        NT = np.eye(3)
+        MT = np.eye(3)
+    else:
+        white_patch_idx = np.argmax(np.mean(output_rgb_flat, axis=1))
+        print(f"white patch index: {white_patch_idx}", f"with color: {output_rgb_flat[white_patch_idx]}")
+        NT = np.diag(1 / input_rgb_flat[white_patch_idx, :])
+        MT = np.diag(1 / output_rgb_flat[white_patch_idx, :])
+    N = input_rgb_flat @ NT
+    M = output_rgb_flat @ MT
     u = np.ones((3, 1))
-    N = input_rgb_flat / input_rgb_flat[[white_patch_idx], :]
-    M = output_rgb_flat / output_rgb_flat[[white_patch_idx], :]
     mat = np.zeros((3, 3))
     for i in range(mat.shape[1]):
         v = M[:, [i]]
@@ -97,12 +98,8 @@ def fit_colors_wppls(input_rgb, output_rgb, weights, args):
         assert c.shape == (3, 1)
         mat[:, [i]] = c
 
-    print(mat.T)
-    print("initial error: ", np.mean(np.abs(input_rgb_flat - output_rgb_flat)))
-    print("error: ", np.mean(np.abs((input_rgb_flat @ mat) - output_rgb_flat)))
-    print("initial error: ", np.mean(np.abs(N, M)))
-    print("error: ", np.mean(np.abs((N @ mat) - M)))
-    print(np.sum(mat.T, axis=1))
+    mat2 = NT @ mat @ np.linalg.pinv(MT)
+    return mat2.T, lambda x: x @ mat2
 
 def fit_colors_gd(input_rgb, output_rgb, weights, args):
     if torch.cuda.is_available():
@@ -149,9 +146,8 @@ def fit_colors_gd(input_rgb, output_rgb, weights, args):
 
     model.print_weights()
     model.eval()
-    with torch.no_grad():
-        transformed_src_img = model(torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32)).detach().cpu().numpy()
-        print("Final mean ABS error: ", np.mean(np.abs(flatten(output_rgb) - transformed_src_img)))
+    return (model.mat.weight.data.detach().cpu().numpy(), model.bias.detach().cpu().numpy()), \
+        lambda x: model(torch.tensor(x, device=device, dtype=torch.float32)).detach().cpu().numpy()
 
 
 if __name__ == "__main__":
@@ -172,13 +168,19 @@ if __name__ == "__main__":
         "--bias3d",
         action="store_true",
         default=False,
-        help="Include this flag if you want to apply a colored offset to the result, after the matrix."
+        help="Include this flag if you want to apply a colored offset to the result, after the matrix. Only applies to gd method."
     )
     parser.add_argument(
         "--method",
         type=str,
         default=None,
         help="Specify the method to match the two sets of colors. Options are: {gd, ls, wp}, ls is default"
+    )
+    parser.add_argument(
+        "--enforce-whitepoint",
+        action="store_true",
+        default=False,
+        help="Include this flag if you want to enforce that the matrix maps (1,1,1) to (1,1,1), skipping the white point adjustment step for the wp method."
     )
     args = parser.parse_args()
 
@@ -199,7 +201,6 @@ if __name__ == "__main__":
     # sample_weights[0, 3, :] *= 0
 
     # Compute initial error
-    print("Initial mean ABS error: ", np.mean(np.abs(flatten(ref_samples) - flatten(src_samples))))
 
     if method == "ls":
         fit_colors = fit_colors_ls
@@ -208,4 +209,9 @@ if __name__ == "__main__":
     elif method == "wp":
         fit_colors = fit_colors_wppls
 
-    fit_colors(src_samples, ref_samples, sample_weights, args)
+    parameters, model_func = fit_colors(src_samples, ref_samples, sample_weights, args)
+    print("Initial mean ABS error: ", np.mean(np.abs(flatten(src_samples) - flatten(ref_samples))))
+    print("Final mean ABS error: ", np.mean(np.abs(model_func(flatten(src_samples)) - flatten(ref_samples))))
+    print("Initial MSE error: ", np.mean((flatten(src_samples) - flatten(ref_samples))**2))
+    print("Final MSE error: ", np.mean((model_func(flatten(src_samples)) - flatten(ref_samples))**2))
+    print(repr(parameters))
