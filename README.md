@@ -1,15 +1,11 @@
 # rgb-matrix-finder
 
-This script takes two **scene linear** images of a color chart and derives a best-fit RGB matrix that makes the "Source" image as similar to the "Target" image as possible. Requires OpenEXR, which you can download at one of these two links:
+This script takes two **scene linear** images of a color chart and derives a best-fit RGB matrix that makes the "Source" image as similar to the "Target" image as possible.
 
-https://www.lfd.uci.edu/~gohlke/pythonlibs/
-
-https://www.excamera.com/sphinx/articles-openexr.html
-
-Also requires `pytorch`.
+Requires `pytorch`.
 
 ## Running
-Run with `python regressor.py` and follow the instructions.
+Install the needed libraries with `pip install -r requirements.txt` and run with `python camera_matcher.py` and follow the instructions.
 
 ## Modeling
 

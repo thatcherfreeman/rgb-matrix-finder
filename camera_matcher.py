@@ -10,6 +10,10 @@ import os
 from itertools import product
 
 
+# Intended to help you match one Scene Linear image of a color chart
+# from one camera to another.
+
+
 def open_image(image_fn: str) -> np.ndarray:
     os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
     img: np.ndarray = cv2.imread(image_fn, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
