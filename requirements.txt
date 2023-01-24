@@ -4,3 +4,5 @@ opencv-python
 matplotlib
 tqdm
 pylint
+mypy
+pytest
