@@ -122,7 +122,14 @@ class XYYChart(Chart):
         xyz = XYZChart(xyz_colors)
         return xyz
 
+class ReferenceChart(LABChart):
+    reference_white: XYZChart
+    def __init__(self, colors: Union[np.ndarray, list], reference_white: XYZChart):
+        super(ReferenceChart, self).__init__(colors)
+        self.reference_white = reference_white
+
 STD_A: XYZChart = XYYChart(colors=np.array([[0.34842, 0.35161, 1.0]])).convert_to_xyz()
 STD_C: XYZChart = XYYChart(colors=np.array([[0.31006, 0.31616, 1.0]])).convert_to_xyz()
 STD_D65: XYZChart = XYYChart(colors=np.array([[0.31271, 0.32902, 1.0]])).convert_to_xyz()
+STD_D50: XYZChart = XYYChart(colors=np.array([[0.34567, 0.35850, 1.0]])).convert_to_xyz()
 STD_E: XYZChart = XYZChart(colors=np.array([[1.0, 1.0, 1.0]]))
