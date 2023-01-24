@@ -19,6 +19,7 @@ def read_text_file(fn: str) -> List[str]:
         return f.readlines()
 
 def load_reference_chart(lines: List[str]) -> color_conversions.ReferenceChart:
+    # Parses the X-Rite color chart official specification
     reference_white: Optional[color_conversions.XYZChart] = None
     patches: List[List[float]] = []
     verified_lab = False
