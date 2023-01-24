@@ -2,15 +2,14 @@ import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
+import matplotlib.pyplot as plt # type:ignore
+from tqdm import tqdm # type:ignore
 from argparse import ArgumentParser
 from itertools import product
 from images import (
     flatten,
     get_samples,
     open_image,
-    sample_image,
 )
 
 # Intended to help you match one Scene Linear image of a color chart
