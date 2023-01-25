@@ -51,7 +51,7 @@ def test_rgbchart() -> None:
     xyz = rgb.convert_to_xyz(np.eye(3))
     assert np.sum(np.abs(xyz.colors - rgb.colors)) < 0.000001
 
-    xyz2 = rgb.convert_to_xyz(np.array([[1.0, 0.1, 0.1], [0.2, 1.0, 0.2], [0.3, 0.3, 1.0]]))
+    xyz2 = rgb.convert_to_xyz(np.array([[1.0, 0.1, 0.1], [0.2, 1.0, 0.2], [0.3, 0.3, 1.0]]).T)
     print(xyz2.colors)
     assert np.sum(np.abs(xyz2.colors - np.array([[1.175, 0.675, 0.45 ], [0.525, 1.1  , 0.475]]))) < 1e-4
 

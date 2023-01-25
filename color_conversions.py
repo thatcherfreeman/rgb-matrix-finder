@@ -17,13 +17,6 @@ class Chart:
         self.colors = np.array(colors)
         self._check_shape()
 
-    def set_colors(self, colors: np.ndarray) -> None:
-        self.colors = colors
-        self._check_shape()
-
-    def get_colors(self) -> np.ndarray:
-        return self.colors
-
     def _check_shape(self):
         assert len(self.colors.shape) == 2 and self.colors.shape[1] == 3
 
@@ -33,8 +26,14 @@ class RGBChart(Chart):
 
     def convert_to_xyz(self, mat: np.ndarray) -> 'XYZChart':
         assert mat.shape == (3, 3), f"Expected 3x3 matrix but found {mat.shape}"
-        out_colors = self.colors @ mat
+        out_colors = self.colors @ mat.T
         out = XYZChart(out_colors)
+        return out
+
+    def convert_to_rgb(self, mat: np.ndarray) -> 'RGBChart':
+        assert mat.shape == (3, 3), f"Expected 3x3 matrix but found {mat.shape}"
+        out_colors = self.colors @ mat.T
+        out = RGBChart(out_colors)
         return out
 
 
@@ -90,7 +89,6 @@ class XYZChart(Chart):
         lab = LABChart(lab_colors)
         return lab
 
-
     def convert_to_xyy(self, white_xyz: 'XYZChart') -> 'XYYChart':
         assert white_xyz.state == ImageState.XYZ, f"convert_xyz_to_lab expected XYZ colors. Got {white_xyz.state}"
         assert white_xyz.colors.shape == (1, 3), f"Unexpected white_xyz shape: {white_xyz.colors.shape}"
@@ -106,6 +104,26 @@ class XYZChart(Chart):
 
         xyy = XYYChart(xyy_colors)
         return xyy
+
+    def convert_to_rgb(self, mat: np.ndarray) -> 'RGBChart':
+        assert mat.shape == (3, 3), f"Expected 3x3 matrix but found {mat.shape}"
+        out_colors = self.colors @ mat.T
+        out = RGBChart(out_colors)
+        return out
+
+    def chromatic_adaptation(self, from_whitepoint: 'XYZChart', to_whitepoint: 'XYZChart') -> 'XYZChart':
+        # CMCAT 2000 matrix.
+        M: np.ndarray = np.array([
+            [ 0.7982, 0.3389, -0.1371],
+            [-0.5918, 1.5512,  0.0406],
+            [ 0.0008, 0.0239,  0.9753]
+        ])
+        M_inv = np.linalg.pinv(M)
+        rgb_colors = self.colors @ M.T
+        rgb_colors *= to_whitepoint.colors / from_whitepoint.colors
+        xyz_colors = rgb_colors @ M_inv.T
+        xyz = XYZChart(xyz_colors)
+        return xyz
 
 class XYYChart(Chart):
     state = ImageState.xyY

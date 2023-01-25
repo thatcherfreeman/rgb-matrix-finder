@@ -215,8 +215,8 @@ if __name__ == "__main__":
     src_img = open_image(src)
 
     chart_shape = (6,4) if args.tall_chart else (4,6)
-    ref_samples = get_samples(ref_img, chart_shape)
-    src_samples = get_samples(src_img, chart_shape)
+    ref_samples, _ = get_samples(ref_img, chart_shape)
+    src_samples, _ = get_samples(src_img, chart_shape)
     premultiply_amt = np.mean(ref_samples / src_samples)
     print(f"Scaling source samples by {premultiply_amt} before fitting.")
     src_samples *= premultiply_amt
