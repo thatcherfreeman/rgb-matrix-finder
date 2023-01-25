@@ -114,6 +114,9 @@ class RGBChart(Chart):
         out = RGBChart(out_colors)
         return out
 
+    def scale(self, gain: float) -> "RGBChart":
+        return RGBChart(self.colors * gain)
+
 
 class LABChart(Chart):
     state = ImageState.LAB
