@@ -32,6 +32,7 @@ def sample_image(img, x, y, radius_erode=0.5, patches=(6,4)):
     return avg, pos
 
 def show_image(img):
+    img = img.astype(np.float32)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     cv2.imshow("image", img)
     cv2.waitKey(0)
@@ -62,19 +63,14 @@ def get_samples(img, patches: Tuple[int, int]=(6,4), flat: bool=False) -> Tuple[
 def draw_samples(img: np.ndarray, source_chart: color_conversions.Chart, reference_chart: color_conversions.ReferenceChart, sample_positions: np.ndarray, show: bool=True) -> np.ndarray:
     reference_colors = reference_chart \
                         .convert_to_xyz(reference_chart.reference_white) \
-                        .chromatic_adaptation(reference_chart.reference_white, color_conversions.STD_D65) \
-                        .convert_to_rgb(np.array([
-                            [3.240970, -1.537383, -0.498611],
-                            [-0.969244,  1.875968,  0.041555],
-                            [0.055630, -0.203977,  1.056972],
-                        ])).colors
+                        .chromatic_adaptation(reference_chart.reference_white, color_conversions.GAMUT_REC709.white.convert_to_xyz()) \
+                        .convert_to_rgb(color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()).colors
     source_colors = source_chart.colors
-    exposure_adjustment = np.max(reference_colors) / np.max(source_colors)
     sample_positions = flatten(sample_positions).astype(int)
-    canvas = (img.copy() * exposure_adjustment)
+    canvas = img.copy()
     for source_color, ref_color, (r1, c1, r2, c2) in zip(source_colors, reference_colors, sample_positions):
         midpoint = [int(0.5 * (r1 + r2)), int(0.5 * (c1 + c2))]
-        canvas[r1:r2, c1:midpoint[1]] = (source_color * exposure_adjustment)
+        canvas[r1:r2, c1:midpoint[1]] = source_color
         canvas[r1:r2, midpoint[1]:c2] = ref_color
         cv2.rectangle(canvas, (c1, r1), (c2, r2), (1.0, 1.0, 1.0))
 

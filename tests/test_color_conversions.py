@@ -48,10 +48,22 @@ def test_labchart() -> None:
 
 def test_rgbchart() -> None:
     rgb = color_conversions.RGBChart([[1.0, 0.5, 0.25], [0.25, 1.0, 0.25]])
-    xyz = rgb.convert_to_xyz(np.eye(3))
+    xyz = rgb.convert_to_xyz(
+        color_conversions.ColorMatrix(
+            np.eye(3),
+            color_conversions.ImageState.RGB,
+            color_conversions.ImageState.XYZ,
+        )
+    )
     assert np.sum(np.abs(xyz.colors - rgb.colors)) < 0.000001
 
-    xyz2 = rgb.convert_to_xyz(np.array([[1.0, 0.1, 0.1], [0.2, 1.0, 0.2], [0.3, 0.3, 1.0]]).T)
+    xyz2 = rgb.convert_to_xyz(
+        color_conversions.ColorMatrix(
+            np.array([[1.0, 0.1, 0.1], [0.2, 1.0, 0.2], [0.3, 0.3, 1.0]]).T,
+            color_conversions.ImageState.RGB,
+            color_conversions.ImageState.XYZ,
+        )
+    )
     print(xyz2.colors)
     assert np.sum(np.abs(xyz2.colors - np.array([[1.175, 0.675, 0.45 ], [0.525, 1.1  , 0.475]]))) < 1e-4
 

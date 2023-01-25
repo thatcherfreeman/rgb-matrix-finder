@@ -1,7 +1,4 @@
 import argparse
-import re
-from typing import Optional, List, Union, Tuple
-
 from images import (
     get_samples,
     open_image,
@@ -10,9 +7,39 @@ from images import (
 import color_conversions
 import reference_charts
 import numpy as np
-import torch
+from scipy.optimize import minimize, OptimizeResult # type:ignore
 
-if __name__ == "__main__":
+
+def get_initial_parameters() -> np.ndarray:
+    params = np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
+    params = params.reshape((6,))
+    return params
+
+def get_mat_from_params(params: np.ndarray) -> color_conversions.ColorMatrix:
+    assert params.shape == (6,)
+    arr = np.zeros((3, 3))
+    params = params.reshape((3, 2))
+    arr[:, :2] = params
+    arr[:, 2] = 1.0 - np.sum(params, axis=1)
+    mat = color_conversions.ColorMatrix(arr, color_conversions.ImageState.RGB, color_conversions.ImageState.RGB)
+    return mat
+
+def cost_function(
+    parameters: np.ndarray,
+    source_chart: color_conversions.RGBChart,
+    ref_chart: color_conversions.ReferenceChart,
+    target_gamut: color_conversions.Gamut,
+) -> float:
+    mat = get_mat_from_params(parameters)
+    source_lab: color_conversions.LABChart = source_chart \
+        .convert_to_rgb(mat) \
+        .convert_to_xyz(target_gamut.get_conversion_to_xyz()) \
+        .chromatic_adaptation(target_gamut.white.convert_to_xyz(), ref_chart.reference_white) \
+        .convert_to_lab(ref_chart.reference_white)
+    de = ref_chart.compute_delta_e(source_lab)
+    return de
+
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "camera_chart",
@@ -30,7 +57,24 @@ if __name__ == "__main__":
         default=False,
         help="Set this flag to search for a portrait chart instead of a landscape one.",
     )
+    parser.add_argument(
+        "--target-gamut",
+        default="DWG",
+        const="DWG",
+        nargs="?",
+        choices=["DWG", "AP0"],
+        help="Choose a target color space for the matrix (default: %(default)s)",
+    )
     args = parser.parse_args()
+
+    # Identify target gamut of IDT
+    target_gamut: color_conversions.Gamut
+    if (args.target_gamut == "DWG"):
+        target_gamut = color_conversions.GAMUT_DWG
+    elif args.target_gamut == "AP0":
+        target_gamut = color_conversions.GAMUT_AP0
+    else:
+        raise ValueError(f"Unexpected target_gamut {args.target_gamut}")
 
     # Read Reference Chart
     reference_chart, patches = reference_charts.load_reference_chart(reference_charts.read_text_file(args.reference_chart))
@@ -43,7 +87,38 @@ if __name__ == "__main__":
     # Read Source image.
     source_image = open_image(args.camera_chart)
     source_samples, sample_positions = get_samples(source_image, patches=patches, flat=True)
-    source_chart = color_conversions.RGBChart(source_samples)
+
+    # Preprocess source chart
+    preprocessed_source_samples = source_samples.copy()
+
+    # 1. TODO: White balance (channel scaling)
+    white_chip_mask = np.sum(np.abs(reference_chart.colors[:, 1:]), axis=1) < 3
+    white_balance_factors = np.prod(preprocessed_source_samples[white_chip_mask, :], axis=0, keepdims=True)**(1.0 / np.sum(white_chip_mask))  # shape (1, 3)
+    print("White balance factors: ", white_balance_factors)
+    preprocessed_source_samples *= 1.0 / white_balance_factors
+
+    # 2. Exposure adjustment (can probably do better than this...)
+    exposure_adjustment = np.max(reference_chart.convert_to_xyz(reference_chart.reference_white).colors) / np.max(preprocessed_source_samples)
+    print("Exposure Adjustment: ", exposure_adjustment)
+    preprocessed_source_samples *= exposure_adjustment
+
+    source_chart = color_conversions.RGBChart(preprocessed_source_samples)
+
+    # Chart Alignment step.
     print("Make sure the selected area and the reference chips are correctly placed on the chart!")
     draw_samples(source_image, source_chart, reference_chart, sample_positions, show=True)
 
+    # Optimize
+    params = get_initial_parameters()
+    print("Initial Delta-E: ", cost_function(params, source_chart, reference_chart, target_gamut))
+    res: OptimizeResult = minimize(cost_function, params, args=(source_chart, reference_chart, target_gamut))
+    print(res.message)
+    optimized = res.x
+    mat = get_mat_from_params(optimized)
+    print(mat.mat)
+    print("Final Delta-E: ", cost_function(optimized, source_chart, reference_chart, target_gamut))
+    draw_samples(source_image @ mat.mat.T, source_chart.convert_to_rgb(mat).convert_to_rgb(color_conversions.GAMUT_DWG.get_conversion_to_gamut(color_conversions.GAMUT_REC709)), reference_chart, sample_positions, show=True)
+
+
+if __name__ == "__main__":
+    main()
