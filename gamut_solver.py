@@ -1,5 +1,7 @@
 import argparse
+from typing import Union
 from images import (
+    flatten,
     get_samples,
     open_image,
     draw_samples,
@@ -11,23 +13,68 @@ from scipy.optimize import minimize, OptimizeResult # type:ignore
 
 
 def get_initial_parameters() -> np.ndarray:
+    # Returns params
+    # [0 ... 5] -> matrix
+    # [6] -> exposure adjustment
+    # [7, 8] -> white balance adjustment (red and blue channels, green assumed to be 1.0)
     params = np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
     params = params.reshape((6,))
-    params = np.concatenate([params, [1.0]])
+    params = np.concatenate([params, [1.0], [1.0, 1.0]])
     return params
 
 def get_mat_from_params(params: np.ndarray) -> color_conversions.ColorMatrix:
-    assert params.shape == (7,)
+    assert params.shape == (9,)
     arr = np.zeros((3, 3))
     params = params[:6].reshape((3, 2))
     arr[:, :2] = params
     arr[:, 2] = 1.0 - np.sum(params, axis=1)
-    mat = color_conversions.ColorMatrix(arr, color_conversions.ImageState.RGB, color_conversions.ImageState.RGB)
+    mat = color_conversions.ColorMatrix(
+        arr,
+        color_conversions.ImageState.RGB,
+        color_conversions.ImageState.RGB,
+    )
     return mat
 
 def get_exp_from_params(params: np.ndarray) -> float:
-    assert params.shape == (7,)
+    assert params.shape == (9,)
     return params[6]
+
+def get_wb_from_params(params: np.ndarray) -> color_conversions.ColorMatrix:
+    assert params.shape == (9,)
+    mat = color_conversions.ColorMatrix(
+        np.diag(np.array([params[7], 1.0, params[8]])),
+        color_conversions.ImageState.RGB,
+        color_conversions.ImageState.RGB,
+    )
+    return mat
+
+def chart_pipeline(
+    source_colors: color_conversions.RGBChart,
+    exp: float,
+    gamut_transform: color_conversions.ColorMatrix,
+    wb_factors: color_conversions.ColorMatrix,
+) -> color_conversions.RGBChart:
+    # Convert chart to the target gamut using the custom matrix.
+    source_transformed = source_colors \
+        .scale(exp) \
+        .convert_to_rgb(gamut_transform) \
+        .convert_to_rgb(wb_factors)
+    return source_transformed
+
+def image_pipeline(
+    source_image: np.ndarray,
+    exp: float,
+    gamut_transform: color_conversions.ColorMatrix,
+    wb_factors: color_conversions.ColorMatrix,
+) -> np.ndarray:
+    assert source_image.shape[-1] == 3
+    source_image_flat = flatten(source_image)
+    source_image_chart = color_conversions.RGBChart(source_image_flat)
+    result_image_chart = chart_pipeline(
+        source_image_chart, exp, gamut_transform, wb_factors
+    )
+    result_image = result_image_chart.colors.reshape(source_image.shape)
+    return result_image
 
 def cost_function(
     parameters: np.ndarray,
@@ -37,9 +84,8 @@ def cost_function(
 ) -> float:
     mat = get_mat_from_params(parameters)
     exp = get_exp_from_params(parameters)
-    source_lab: color_conversions.LABChart = source_chart \
-        .scale(exp) \
-        .convert_to_rgb(mat) \
+    wb = get_wb_from_params(parameters)
+    source_lab: color_conversions.LABChart = chart_pipeline(source_chart, exp, mat, wb) \
         .convert_to_xyz(target_gamut.get_conversion_to_xyz()) \
         .chromatic_adaptation(target_gamut.white.convert_to_xyz(), ref_chart.reference_white) \
         .convert_to_lab(ref_chart.reference_white)
@@ -99,11 +145,11 @@ def main() -> None:
     preprocessed_source_samples = source_samples.copy()
 
     # 1. TODO: White balance (channel scaling)
-    white_chip_mask = np.sum(np.abs(reference_chart.colors[:, 1:]), axis=1) < 3
-    white_balance_factors = 1.0 / (np.prod(preprocessed_source_samples[white_chip_mask, :], axis=0, keepdims=True)**(1.0 / np.sum(white_chip_mask)))  # shape (1, 3)
-    white_balance_factors /= white_balance_factors[0, 1] # scale green to 1.0
-    print("White balance factors: ", white_balance_factors)
-    preprocessed_source_samples *= white_balance_factors
+    # white_chip_mask = np.sum(np.abs(reference_chart.colors[:, 1:]), axis=1) < 3
+    # white_balance_factors = 1.0 / (np.prod(preprocessed_source_samples[white_chip_mask, :], axis=0, keepdims=True)**(1.0 / np.sum(white_chip_mask)))  # shape (1, 3)
+    # white_balance_factors /= white_balance_factors[0, 1] # scale green to 1.0
+    # print("White balance factors: ", white_balance_factors)
+    # preprocessed_source_samples *= white_balance_factors
 
     source_chart = color_conversions.RGBChart(preprocessed_source_samples)
 
@@ -122,9 +168,13 @@ def main() -> None:
     # Measure results.
     mat = get_mat_from_params(optimized)
     exp = get_exp_from_params(optimized)
+    wb = get_wb_from_params(optimized)
     print("solved matrix: ", mat.mat)
     print("Corrected exposure: ", exp)
-    draw_samples(source_image @ mat.mat.T, source_chart.scale(exp).convert_to_rgb(mat).convert_to_rgb(color_conversions.GAMUT_DWG.get_conversion_to_gamut(color_conversions.GAMUT_REC709)), reference_chart, sample_positions, show=True)
+    print("optimized wb coefficients: ", [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]])
+
+    gamut_to_display = target_gamut.get_conversion_to_gamut(color_conversions.GAMUT_REC709)
+    draw_samples(image_pipeline(source_image, exp, mat, wb) @ gamut_to_display.mat.T, chart_pipeline(source_chart, exp, mat, wb).convert_to_rgb(gamut_to_display), reference_chart, sample_positions, show=True)
 
 
 if __name__ == "__main__":
