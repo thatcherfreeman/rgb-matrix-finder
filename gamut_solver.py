@@ -57,8 +57,8 @@ def chart_pipeline(
     # Convert chart to the target gamut using the custom matrix.
     source_transformed = source_colors \
         .scale(exp) \
-        .convert_to_rgb(gamut_transform) \
-        .convert_to_rgb(wb_factors)
+        .convert_to_rgb(wb_factors) \
+        .convert_to_rgb(gamut_transform)
     return source_transformed
 
 def image_pipeline(
