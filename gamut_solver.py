@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 from typing import Union
 from images import (
     flatten,
@@ -172,6 +174,15 @@ def main() -> None:
     print("solved matrix: ", mat.mat)
     print("Corrected exposure: ", exp)
     print("optimized wb coefficients: ", [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]])
+
+    info = {
+        "matrix": mat.mat.tolist(),
+        "gain": exp,
+        "wb_coefficients": wb.mat.tolist(),
+    }
+    json_fn = os.path.join(os.path.dirname(os.path.realpath(args.camera_chart)), "matrix_fit.json")
+    with open(json_fn, 'w') as f:
+        json.dump(info, f)
 
     gamut_to_display = target_gamut.get_conversion_to_gamut(color_conversions.GAMUT_REC709)
     draw_samples(image_pipeline(source_image, exp, mat, wb) @ gamut_to_display.mat.T, chart_pipeline(source_chart, exp, mat, wb).convert_to_rgb(gamut_to_display), reference_chart, sample_positions, show=True)
