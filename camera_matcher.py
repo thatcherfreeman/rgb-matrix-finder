@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt # type:ignore
 from tqdm import tqdm # type:ignore
 from argparse import ArgumentParser
 from itertools import product
-from images import (
+from src.images import (
     flatten,
     get_samples,
     open_image,

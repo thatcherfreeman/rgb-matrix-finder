@@ -2,15 +2,15 @@ import argparse
 import json
 import os
 from typing import Union, Optional
-from images import (
+from src.images import (
     flatten,
     get_samples,
     open_image,
     draw_samples,
 )
-import color_conversions
-import reference_charts
-import optimizer
+import src.color_conversions as color_conversions
+import src.reference_charts as reference_charts
+import src.optimizer as optimizer
 import numpy as np
 from scipy.optimize import minimize, OptimizeResult # type:ignore
 

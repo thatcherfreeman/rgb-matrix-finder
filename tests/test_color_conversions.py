@@ -1,4 +1,4 @@
-import color_conversions
+import src.color_conversions as color_conversions
 import numpy as np
 
 def test_xyzchart() -> None:

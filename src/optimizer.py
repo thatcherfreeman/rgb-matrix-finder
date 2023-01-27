@@ -1,7 +1,7 @@
 import numpy as np
-import color_conversions
+import src.color_conversions as color_conversions
 from scipy.optimize import minimize, OptimizeResult  # type:ignore
-from images import flatten
+from src.images import flatten
 from typing import Tuple, Optional
 
 class Parameters:

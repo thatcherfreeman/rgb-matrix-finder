@@ -3,7 +3,7 @@ import os
 import cv2  # type:ignore
 import numpy as np
 from typing import Tuple, List
-import color_conversions
+import src.color_conversions as color_conversions
 
 
 def open_image(image_fn: str) -> np.ndarray:

@@ -1,5 +1,5 @@
-import reference_charts
-import color_conversions
+import src.reference_charts as reference_charts
+import src.color_conversions as color_conversions
 import numpy as np
 
 file_contents = """

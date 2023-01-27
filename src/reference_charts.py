@@ -1,6 +1,6 @@
 import re
 from typing import List, Tuple, Optional
-import color_conversions
+import src.color_conversions as color_conversions
 
 def read_text_file(fn: str) -> List[str]:
     with open(fn, 'r', encoding='UTF-8') as f:
