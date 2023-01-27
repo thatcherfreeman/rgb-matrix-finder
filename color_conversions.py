@@ -86,6 +86,33 @@ class Gamut:
         m3 = m1.composite(cat).composite(m2)
         return m3
 
+    @staticmethod
+    def get_gamut_from_conversion_matrix(mat: ColorMatrix, target_gamut: "Gamut") -> "Gamut":
+        """
+        Given Mat, which converts from some unknown source_gamut to the specified
+        target_gamut, return the source_gamut.
+        """
+        assert mat.from_state == ImageState.RGB and mat.to_state == ImageState.RGB
+        source_to_xyz_mat: ColorMatrix = mat.composite(target_gamut.get_conversion_to_xyz())
+        primaries_rgb: RGBChart = RGBChart(np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ]))
+        primaries_xyz: XYZChart = primaries_rgb.convert_to_xyz(source_to_xyz_mat)
+        if any(primaries_xyz.colors[:, 1] == 0.0):
+            raise ValueError("Encountered zero luminance in get_gamut_from_conversion_matrix.")
+        primaries_xyy: XYYChart = primaries_xyz.convert_to_xyy(STD_E).normalize()
+        source_gamut: "Gamut" = Gamut(
+            red=XYYChart(primaries_xyy.colors[[0]]),
+            green=XYYChart(primaries_xyy.colors[[1]]),
+            blue=XYYChart(primaries_xyy.colors[[2]]),
+            white=XYYChart(primaries_xyy.colors[[3]]),
+        )
+        return source_gamut
+
+
 class Chart:
     colors: np.ndarray
     state: ImageState

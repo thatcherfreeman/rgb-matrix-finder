@@ -3,7 +3,7 @@ from typing import List, Tuple, Optional
 import color_conversions
 
 def read_text_file(fn: str) -> List[str]:
-    with open(fn, 'r') as f:
+    with open(fn, 'r', encoding='UTF-8') as f:
         return f.readlines()
 
 def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
