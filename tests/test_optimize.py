@@ -172,6 +172,7 @@ def test_optimize_nd() -> None:
         )
         < 0.001
     )
+    assert np.sum(np.abs(parameters[1].matrix.mat - (np.eye(3)))) < 0.001
     assert (
         np.abs(parameters[0].white_balance.mat[0, 0] - (1.0 / wb_coeffs1[0, 0])) < 0.01
     )
