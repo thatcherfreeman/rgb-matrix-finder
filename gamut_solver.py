@@ -12,7 +12,7 @@ import src.color_conversions as color_conversions
 import src.reference_charts as reference_charts
 import src.optimizer as optimizer
 import numpy as np
-from scipy.optimize import minimize, OptimizeResult # type:ignore
+from scipy.optimize import minimize, OptimizeResult  # type:ignore
 
 
 def main() -> None:
@@ -20,12 +20,12 @@ def main() -> None:
     parser.add_argument(
         "reference_chart",
         type=str,
-        help="File name of reference chart LAB txt description."
+        help="File name of reference chart LAB txt description.",
     )
     parser.add_argument(
         "camera_chart",
         type=str,
-        help="File name of a color chart shot on a camera, with the image already in scene linear."
+        help="File name of a color chart shot on a camera, with the image already in scene linear.",
     )
     parser.add_argument(
         "--tall-chart",
@@ -45,13 +45,13 @@ def main() -> None:
         "--correct-wb",
         action="store_true",
         default=False,
-        help="Set this flag to have the program automatically compute the ideal exposure adjustment and white balance for your camera chart. Without this flag, by default, this will only optimize the 3x3 matrix."
+        help="Set this flag to have the program automatically compute the ideal exposure adjustment and white balance for your camera chart. Without this flag, by default, this will only optimize the 3x3 matrix.",
     )
     args = parser.parse_args()
 
     # Identify target gamut of IDT
     target_gamut: color_conversions.Gamut
-    if (args.target_gamut == "DWG"):
+    if args.target_gamut == "DWG":
         target_gamut = color_conversions.GAMUT_DWG
     elif args.target_gamut == "AP0":
         target_gamut = color_conversions.GAMUT_AP0
@@ -59,7 +59,9 @@ def main() -> None:
         raise ValueError(f"Unexpected target_gamut {args.target_gamut}")
 
     # Read Reference Chart
-    reference_chart, patches = reference_charts.load_reference_chart(reference_charts.read_text_file(args.reference_chart))
+    reference_chart, patches = reference_charts.load_reference_chart(
+        reference_charts.read_text_file(args.reference_chart)
+    )
     if args.tall_chart:
         patches = max(patches), min(patches)
     else:
@@ -68,7 +70,9 @@ def main() -> None:
 
     # Read Source image.
     source_image = open_image(args.camera_chart)
-    source_samples, sample_positions = get_samples(source_image, patches=patches, flat=True)
+    source_samples, sample_positions = get_samples(
+        source_image, patches=patches, flat=True
+    )
 
     # Preprocess source chart
     preprocessed_source_samples = source_samples.copy()
@@ -83,8 +87,12 @@ def main() -> None:
     source_chart = color_conversions.RGBChart(preprocessed_source_samples)
 
     # Chart Alignment step.
-    print("Make sure the selected area and the reference chips are correctly placed on the chart!")
-    draw_samples(source_image, source_chart, reference_chart, sample_positions, show=True)
+    print(
+        "Make sure the selected area and the reference chips are correctly placed on the chart!"
+    )
+    draw_samples(
+        source_image, source_chart, reference_chart, sample_positions, show=True
+    )
 
     # Optimize
     if args.correct_wb:
@@ -99,7 +107,13 @@ def main() -> None:
                 color_conversions.ImageState.RGB,
             ),
         )
-    parameters: optimizer.Parameters = optimizer.optimize(source_chart, reference_chart, target_gamut, verbose=True, parameters=initial_parameters)
+    parameters: optimizer.Parameters = optimizer.optimize(
+        source_chart,
+        reference_chart,
+        target_gamut,
+        verbose=True,
+        parameters=initial_parameters,
+    )
     mat, exp, wb = parameters.matrix, parameters.exposure, parameters.white_balance
 
     # Measure results.
@@ -107,7 +121,13 @@ def main() -> None:
     print("Corrected exposure: ", exp)
     print("optimized wb coefficients: ", [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]])
     gamut = color_conversions.Gamut.get_gamut_from_conversion_matrix(mat, target_gamut)
-    print("Gamut Primaries: ", gamut.red.colors, gamut.green.colors, gamut.blue.colors, gamut.white.colors)
+    print(
+        "Gamut Primaries: ",
+        gamut.red.colors,
+        gamut.green.colors,
+        gamut.blue.colors,
+        gamut.white.colors,
+    )
 
     info = {
         "matrix": mat.mat.tolist(),
@@ -121,13 +141,17 @@ def main() -> None:
         },
     }
     json_fn = os.path.splitext(args.camera_chart)[0] + ".json"
-    with open(json_fn, 'w', encoding='UTF-8') as json_file:
+    with open(json_fn, "w", encoding="UTF-8") as json_file:
         json.dump(info, json_file)
 
-    gamut_to_display = target_gamut.get_conversion_to_gamut(color_conversions.GAMUT_REC709)
+    gamut_to_display = target_gamut.get_conversion_to_gamut(
+        color_conversions.GAMUT_REC709
+    )
     draw_samples(
         optimizer.image_pipeline(source_image, exp, mat, wb) @ gamut_to_display.mat.T,
-        optimizer.chart_pipeline(source_chart, exp, mat, wb).convert_to_rgb(gamut_to_display),
+        optimizer.chart_pipeline(source_chart, exp, mat, wb).convert_to_rgb(
+            gamut_to_display
+        ),
         reference_chart,
         sample_positions,
         show=True,

@@ -2,8 +2,8 @@ import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
-import matplotlib.pyplot as plt # type:ignore
-from tqdm import tqdm # type:ignore
+import matplotlib.pyplot as plt  # type:ignore
+from tqdm import tqdm  # type:ignore
 from argparse import ArgumentParser
 from itertools import product
 from src.images import (
@@ -24,13 +24,21 @@ class glass(nn.Module):
         super().__init__()
         self.mat = nn.Linear(3, 3, bias=False)
         if bias == "1d":
-            self.bias = nn.parameter.Parameter(torch.tensor(0.))
+            self.bias = nn.parameter.Parameter(torch.tensor(0.0))
             print("Applying 1d bias, model is: A @ (source + bias) = target")
         elif bias == "3d":
-            self.bias = nn.parameter.Parameter(torch.tensor([0., 0., 0.,]))
+            self.bias = nn.parameter.Parameter(
+                torch.tensor(
+                    [
+                        0.0,
+                        0.0,
+                        0.0,
+                    ]
+                )
+            )
             print("Applying 3d bias, model is: A @ (source + bias) = target")
         elif bias == None:
-            self.bias = torch.tensor(0.)
+            self.bias = torch.tensor(0.0)
             print("Applying no bias, model is: A @ (source) = target")
         else:
             assert False, f"Bias type {bias} not supported."
@@ -49,9 +57,11 @@ class glass(nn.Module):
 
 def fit_colors_ls(input_rgb, output_rgb, args):
     input_rgb_flat = flatten(input_rgb)
-    output_rgb_flat = flatten(output_rgb) # (24, 3)
+    output_rgb_flat = flatten(output_rgb)  # (24, 3)
     if args.bias == "3d":
-        input_rgb_flat = np.concatenate([input_rgb_flat, np.ones((input_rgb_flat.shape[0], 1))], axis=1) # (24,4)
+        input_rgb_flat = np.concatenate(
+            [input_rgb_flat, np.ones((input_rgb_flat.shape[0], 1))], axis=1
+        )  # (24,4)
         print("Applying 3d bias, model is: bias + (A @ source) = target")
     else:
         print("Applying no bias, model is: A @ source = target")
@@ -71,7 +81,7 @@ def fit_colors_ls(input_rgb, output_rgb, args):
 
 def fit_colors_wppls(input_rgb, output_rgb, args):
     input_rgb_flat = flatten(input_rgb)
-    output_rgb_flat = flatten(output_rgb) # (24, 3)
+    output_rgb_flat = flatten(output_rgb)  # (24, 3)
     print("Applying no bias, model is: A @ source = target")
 
     if args.enforce_whitepoint:
@@ -79,7 +89,10 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
         MT = np.eye(3)
     else:
         white_patch_idx = np.argmax(np.mean(output_rgb_flat, axis=1))
-        print(f"white patch index: {white_patch_idx}", f"with color: {output_rgb_flat[white_patch_idx]}")
+        print(
+            f"white patch index: {white_patch_idx}",
+            f"with color: {output_rgb_flat[white_patch_idx]}",
+        )
         NT = np.diag(1 / input_rgb_flat[white_patch_idx, :])
         MT = np.diag(1 / output_rgb_flat[white_patch_idx, :])
     N = input_rgb_flat @ NT
@@ -99,11 +112,12 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
     mat2 = NT @ mat @ np.linalg.pinv(MT)
     return mat2.T, lambda x: x @ mat2
 
+
 def fit_colors_gd(input_rgb, output_rgb, args):
     if torch.cuda.is_available():
-        device = torch.device('cuda:0')
+        device = torch.device("cuda:0")
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
 
     ds = TensorDataset(
         torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32),
@@ -123,7 +137,9 @@ def fit_colors_gd(input_rgb, output_rgb, args):
         return x
 
     epochs = int(max(1, 200000 / len(ds)))
-    loss_fn = lambda y, y_pred: torch.mean((relu_log(1 + y_pred) - relu_log(1 + y))**2)
+    loss_fn = lambda y, y_pred: torch.mean(
+        (relu_log(1 + y_pred) - relu_log(1 + y)) ** 2
+    )
 
     with tqdm(total=epochs) as pbar:
         for e in range(epochs):
@@ -141,8 +157,13 @@ def fit_colors_gd(input_rgb, output_rgb, args):
             pbar.update(1)
 
     model.eval()
-    return (model.mat.weight.data.detach().cpu().numpy(), model.bias.detach().cpu().numpy()), \
-        lambda x: model(torch.tensor(x, device=device, dtype=torch.float32)).detach().cpu().numpy()
+    return (
+        model.mat.weight.data.detach().cpu().numpy(),
+        model.bias.detach().cpu().numpy(),
+    ), lambda x: model(
+        torch.tensor(x, device=device, dtype=torch.float32)
+    ).detach().cpu().numpy()
+
 
 def plot_samples(samples, labels):
     # samples of shape (n, 3) or (r, c, 3)
@@ -154,11 +175,11 @@ def plot_samples(samples, labels):
         num_cols = samples.shape[1]
         num_rows = samples.shape[0]
     f, axarr = plt.subplots(num_rows, num_cols)
-    f.set_size_inches(16,9)
+    f.set_size_inches(16, 9)
     # scale = 1 / np.max(samples)
     scale = 1.0
     for i, (color, title) in enumerate(zip(flatten(samples), flatten(labels))):
-        r,c = i // num_cols, i % num_cols
+        r, c = i // num_cols, i % num_cols
         axarr[r, c].imshow(np.ones((100, 100, 3)) * color * scale)
         axarr[r, c].set_title(title[0], fontsize=5)
         axarr[r, c].set_xticks([])
@@ -190,13 +211,13 @@ if __name__ == "__main__":
         "--method",
         type=str,
         default=None,
-        help="Specify the method to match the two sets of colors. Options are: {gd, ls, wp}, ls is default"
+        help="Specify the method to match the two sets of colors. Options are: {gd, ls, wp}, ls is default",
     )
     parser.add_argument(
         "--enforce-whitepoint",
         action="store_true",
         default=False,
-        help="Include this flag if you want to enforce that the matrix maps (1,1,1) to (1,1,1), skipping the white point adjustment step for the wp method."
+        help="Include this flag if you want to enforce that the matrix maps (1,1,1) to (1,1,1), skipping the white point adjustment step for the wp method.",
     )
     parser.add_argument(
         "--tall-chart",
@@ -214,7 +235,7 @@ if __name__ == "__main__":
     ref_img = open_image(ref)
     src_img = open_image(src)
 
-    chart_shape = (6,4) if args.tall_chart else (4,6)
+    chart_shape = (6, 4) if args.tall_chart else (4, 6)
     ref_samples, _ = get_samples(ref_img, chart_shape)
     src_samples, _ = get_samples(src_img, chart_shape)
     premultiply_amt = np.mean(ref_samples / src_samples)
@@ -232,20 +253,36 @@ if __name__ == "__main__":
 
     estimated_ref_samples = model_func(flatten(src_samples)).reshape(src_samples.shape)
     print("Initial mean ABS error: ", np.mean(np.abs(src_samples - ref_samples)))
-    print("Final mean ABS error: ", np.mean(np.abs(estimated_ref_samples - ref_samples)))
-    print("Initial MSE error: ", np.mean((src_samples - ref_samples)**2))
-    print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples)**2))
+    print(
+        "Final mean ABS error: ", np.mean(np.abs(estimated_ref_samples - ref_samples))
+    )
+    print("Initial MSE error: ", np.mean((src_samples - ref_samples) ** 2))
+    print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples) ** 2))
     print(repr(parameters))
 
     # Draw the color chip chart.
-    est_titles = np.zeros((estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1), dtype=object)
-    ref_titles = np.zeros((estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1), dtype=object)
-    src_titles = np.zeros((estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1), dtype=object)
-    for r, c in product(range(estimated_ref_samples.shape[0]), range(estimated_ref_samples.shape[1])):
+    est_titles = np.zeros(
+        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
+        dtype=object,
+    )
+    ref_titles = np.zeros(
+        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
+        dtype=object,
+    )
+    src_titles = np.zeros(
+        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
+        dtype=object,
+    )
+    for r, c in product(
+        range(estimated_ref_samples.shape[0]), range(estimated_ref_samples.shape[1])
+    ):
         x = estimated_ref_samples[r, c]
         y = ref_samples[r, c]
         est_titles[r, c, 0] = f"est error: {np.mean(np.abs(x - y)):.4f}"
         ref_titles[r, c, 0] = "reference"
         src_titles[r, c, 0] = f"src error: {np.mean(np.abs(src_samples[r,c] - y)):.4f}"
 
-    plot_samples(np.concatenate([src_samples, estimated_ref_samples, ref_samples], axis=1), np.concatenate([src_titles, est_titles, ref_titles], axis=1))
+    plot_samples(
+        np.concatenate([src_samples, estimated_ref_samples, ref_samples], axis=1),
+        np.concatenate([src_titles, est_titles, ref_titles], axis=1),
+    )

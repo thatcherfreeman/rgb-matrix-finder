@@ -85,19 +85,38 @@ END_DATA
 
 
 def test_load_reference_chart() -> None:
-    lines = file_contents.split('\n')
+    lines = file_contents.split("\n")
     reference_chart, patches = reference_charts.load_reference_chart(lines)
     assert patches == (4, 6)
     assert reference_chart.colors.shape == (24, 3)
-    assert np.sum(np.abs(reference_chart.colors[1] - np.array([[62.73, 35.83, 56.50]]))) < 0.0001
-    assert np.sum(np.abs(reference_chart.reference_white.colors - color_conversions.STD_A.colors)) < 0.0001
+    assert (
+        np.sum(np.abs(reference_chart.colors[1] - np.array([[62.73, 35.83, 56.50]])))
+        < 0.0001
+    )
+    assert (
+        np.sum(
+            np.abs(
+                reference_chart.reference_white.colors - color_conversions.STD_A.colors
+            )
+        )
+        < 0.0001
+    )
 
 
 def test_load_reference_chart2() -> None:
-    lines = file_contents2.split('\n')
+    lines = file_contents2.split("\n")
     reference_chart, patches = reference_charts.load_reference_chart(lines)
     assert patches == (4, 6)
     assert reference_chart.colors.shape == (24, 3)
-    assert np.sum(np.abs(reference_chart.colors[1] - np.array([[62.661, 36.067, 57.096]]))) < 0.0001
-    assert np.sum(np.abs(reference_chart.reference_white.colors - color_conversions.STD_A.colors)) < 0.0001
-
+    assert (
+        np.sum(np.abs(reference_chart.colors[1] - np.array([[62.661, 36.067, 57.096]])))
+        < 0.0001
+    )
+    assert (
+        np.sum(
+            np.abs(
+                reference_chart.reference_white.colors - color_conversions.STD_A.colors
+            )
+        )
+        < 0.0001
+    )

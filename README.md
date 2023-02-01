@@ -14,3 +14,4 @@ Given an RGB (3-dimensional) color patch `x` from the Source image and a RGB col
 ## Unit Tests
 * Run linter with `mypy .`
 * Run unit tests with `pytest --cov tests`
+* Reformat code with `black .`

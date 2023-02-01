@@ -20,16 +20,17 @@ def flatten(img):
     return np.reshape(img, (int(np.round(np.prod(img.shape[:-1]))), img.shape[-1]))
 
 
-def sample_image(img, x, y, radius_erode=0.5, patches=(6,4)):
+def sample_image(img, x, y, radius_erode=0.5, patches=(6, 4)):
     # Samples a (2*radius, 2*radius) box of pixels surrounding the point (x,y) in the image. 0 < x, y < 1
     h, w, c = img.shape
     row_radius = int(radius_erode * (h / (2 * patches[0])))
     col_radius = int(radius_erode * (w / (2 * patches[1])))
     row, col = int(y * h), int(x * w)
-    pos = [row-row_radius, col-col_radius, row+row_radius, col+col_radius]
-    samples = img[pos[0]:pos[2], pos[1]:pos[3], :]
+    pos = [row - row_radius, col - col_radius, row + row_radius, col + col_radius]
+    samples = img[pos[0] : pos[2], pos[1] : pos[3], :]
     avg = np.mean(flatten(samples), axis=0)
     return avg, pos
+
 
 def show_image(img):
     img = img.astype(np.float32)
@@ -37,12 +38,20 @@ def show_image(img):
     cv2.imshow("image", img)
     cv2.waitKey(0)
 
-def get_samples(img, patches: Tuple[int, int]=(6,4), flat: bool=False) -> Tuple[np.ndarray, np.ndarray]:
+
+def get_samples(
+    img, patches: Tuple[int, int] = (6, 4), flat: bool = False
+) -> Tuple[np.ndarray, np.ndarray]:
     samples = np.zeros((patches[0], patches[1], 3))
     sample_positions = np.zeros((patches[0], patches[1], 4))
     for patch_row in range(patches[0]):
         for patch_col in range(patches[1]):
-            sample, pos = sample_image(img, (patch_col*2+1) / (patches[1]*2), (patch_row*2+1) / (patches[0]*2), patches=patches)
+            sample, pos = sample_image(
+                img,
+                (patch_col * 2 + 1) / (patches[1] * 2),
+                (patch_row * 2 + 1) / (patches[0] * 2),
+                patches=patches,
+            )
             samples[patch_row, patch_col, :] = sample
             sample_positions[patch_row, patch_col, :] = pos
 
@@ -60,20 +69,36 @@ def get_samples(img, patches: Tuple[int, int]=(6,4), flat: bool=False) -> Tuple[
         sample_positions = flatten(sample_positions)
     return samples, sample_positions
 
-def draw_samples(img: np.ndarray, source_chart: color_conversions.Chart, reference_chart: color_conversions.ReferenceChart, sample_positions: np.ndarray, show: bool=True) -> np.ndarray:
-    reference_colors = reference_chart \
-                        .convert_to_xyz(reference_chart.reference_white) \
-                        .chromatic_adaptation(reference_chart.reference_white, color_conversions.GAMUT_REC709.white.convert_to_xyz()) \
-                        .convert_to_rgb(color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()).colors
+
+def draw_samples(
+    img: np.ndarray,
+    source_chart: color_conversions.Chart,
+    reference_chart: color_conversions.ReferenceChart,
+    sample_positions: np.ndarray,
+    show: bool = True,
+) -> np.ndarray:
+    reference_colors = (
+        reference_chart.convert_to_xyz(reference_chart.reference_white)
+        .chromatic_adaptation(
+            reference_chart.reference_white,
+            color_conversions.GAMUT_REC709.white.convert_to_xyz(),
+        )
+        .convert_to_rgb(
+            color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()
+        )
+        .colors
+    )
     source_colors = source_chart.colors
     sample_positions = flatten(sample_positions).astype(int)
     canvas = img.copy()
-    for source_color, ref_color, (r1, c1, r2, c2) in zip(source_colors, reference_colors, sample_positions):
+    for source_color, ref_color, (r1, c1, r2, c2) in zip(
+        source_colors, reference_colors, sample_positions
+    ):
         midpoint = [int(0.5 * (r1 + r2)), int(0.5 * (c1 + c2))]
-        canvas[r1:r2, c1:midpoint[1]] = source_color
-        canvas[r1:r2, midpoint[1]:c2] = ref_color
+        canvas[r1:r2, c1 : midpoint[1]] = source_color
+        canvas[r1:r2, midpoint[1] : c2] = ref_color
         cv2.rectangle(canvas, (c1, r1), (c2, r2), (1.0, 1.0, 1.0))
 
     if show:
-        show_image(np.maximum(canvas, 0.0)**(1.0/2.4))
+        show_image(np.maximum(canvas, 0.0) ** (1.0 / 2.4))
     return canvas

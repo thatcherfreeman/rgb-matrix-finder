@@ -2,11 +2,15 @@ import re
 from typing import List, Tuple, Optional
 import src.color_conversions as color_conversions
 
+
 def read_text_file(fn: str) -> List[str]:
-    with open(fn, 'r', encoding='UTF-8') as f:
+    with open(fn, "r", encoding="UTF-8") as f:
         return f.readlines()
 
-def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
+
+def load_reference_chart(
+    lines: List[str],
+) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
     # Parses the X-Rite color chart official specification
     reference_white: color_conversions.XYZChart = color_conversions.STD_A  # default
     patches: List[List[float]] = []
@@ -28,12 +32,22 @@ def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceC
             groups = matches.groups()
             exp_num_patches: int = int(groups[0])
 
-        matches = re.match(r"([A-Z]*)(\d*)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)", l)
+        matches = re.match(
+            r"([A-Z]*)(\d*)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)", l
+        )
         if matches is not None:
             groups = matches.groups()
             groups_reformatted = [x.replace(",", ".") for x in groups]
-            patches.append([float(groups_reformatted[2]), float(groups_reformatted[3]), float(groups_reformatted[4])])
-            highest_patch_coord = max(highest_patch_coord[0], groups_reformatted[0]), max(highest_patch_coord[1], int(groups_reformatted[1]))
+            patches.append(
+                [
+                    float(groups_reformatted[2]),
+                    float(groups_reformatted[3]),
+                    float(groups_reformatted[4]),
+                ]
+            )
+            highest_patch_coord = max(
+                highest_patch_coord[0], groups_reformatted[0]
+            ), max(highest_patch_coord[1], int(groups_reformatted[1]))
 
         matches = re.match(r"SAMPLE_NAME\s+([\S\_]+)\s+([\S\_]+)\s+([\S\_]+)", l)
         if matches is not None:
@@ -41,10 +55,17 @@ def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceC
             assert [x.lower() for x in groups] == ["lab_l", "lab_a", "lab_b"]
             verified_lab = True
 
-    estimated_dimensions = highest_patch_coord[1], exp_num_patches // highest_patch_coord[1]
+    estimated_dimensions = (
+        highest_patch_coord[1],
+        exp_num_patches // highest_patch_coord[1],
+    )
     assert verified_lab, "File did not indicate LAB color space. Color space unknown!"
-    assert exp_num_patches == len(patches), f"Incorrect number of patches found in file. expected {exp_num_patches} but found {len(patches)}"
+    assert exp_num_patches == len(
+        patches
+    ), f"Incorrect number of patches found in file. expected {exp_num_patches} but found {len(patches)}"
     assert reference_white is not None, "Could not parse reference white from file."
 
-    reference_chart = color_conversions.ReferenceChart(colors=patches, reference_white=reference_white)
+    reference_chart = color_conversions.ReferenceChart(
+        colors=patches, reference_white=reference_white
+    )
     return reference_chart, estimated_dimensions

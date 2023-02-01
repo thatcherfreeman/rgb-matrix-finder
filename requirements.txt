@@ -5,3 +5,4 @@ pylint
 mypy
 pytest-cov
 scipy
+black

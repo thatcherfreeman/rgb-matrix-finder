@@ -4,6 +4,7 @@ from scipy.optimize import minimize, OptimizeResult  # type:ignore
 from src.images import flatten
 from typing import Tuple, Optional, List
 
+
 class Parameters:
     _solve_matrix: bool
     matrix: color_conversions.ColorMatrix
@@ -14,9 +15,9 @@ class Parameters:
 
     def __init__(
         self,
-        matrix: Optional[color_conversions.ColorMatrix]=None,
-        exposure: Optional[float]=None,
-        white_balance: Optional[color_conversions.ColorMatrix]=None,
+        matrix: Optional[color_conversions.ColorMatrix] = None,
+        exposure: Optional[float] = None,
+        white_balance: Optional[color_conversions.ColorMatrix] = None,
     ) -> None:
         """
         For each input, if None, then we will want to solve for this parameter.
@@ -70,7 +71,9 @@ class Parameters:
         """
         mat_params = self.matrix.mat[:, :2].reshape((6,))
         exposure_params = np.array(1.0)
-        wb_params = np.array([self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]])
+        wb_params = np.array(
+            [self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]]
+        )
         params: np.ndarray = np.array([])
         if self._solve_matrix:
             params = np.concatenate([params, mat_params])
@@ -109,12 +112,15 @@ class Parameters:
         return np.concatenate([p.to_numpy_parameters() for p in parameters_list])
 
     @staticmethod
-    def update_parameter_list_from_numpy(np_params: np.ndarray, parameters_list: List["Parameters"]) -> List["Parameters"]:
+    def update_parameter_list_from_numpy(
+        np_params: np.ndarray, parameters_list: List["Parameters"]
+    ) -> List["Parameters"]:
         output = []
         for parameter in parameters_list:
             np_params = parameter.update_from_numpy(np_params)
             output.append(parameter)
         return output
+
 
 def chart_pipeline(
     source_colors: color_conversions.RGBChart,
@@ -127,11 +133,13 @@ def chart_pipeline(
     exp, wb_factors, and gamut_transform in that order.
     """
     # Convert chart to the target gamut using the custom matrix.
-    source_transformed = source_colors \
-        .scale(exp) \
-        .convert_to_rgb(wb_factors) \
+    source_transformed = (
+        source_colors.scale(exp)
+        .convert_to_rgb(wb_factors)
         .convert_to_rgb(gamut_transform)
+    )
     return source_transformed
+
 
 def image_pipeline(
     source_image: np.ndarray,
@@ -152,6 +160,7 @@ def image_pipeline(
     result_image = result_image_chart.colors.reshape(source_image.shape)
     return result_image
 
+
 def cost_function(
     params: np.ndarray,
     parameters: Parameters,
@@ -159,8 +168,11 @@ def cost_function(
     ref_chart: color_conversions.ReferenceChart,
     target_gamut: color_conversions.Gamut,
 ) -> float:
-    de = agg_cost_function(params, [parameters], [source_chart], [ref_chart], target_gamut)
+    de = agg_cost_function(
+        params, [parameters], [source_chart], [ref_chart], target_gamut
+    )
     return de
+
 
 def agg_cost_function(
     params: np.ndarray,
@@ -169,23 +181,32 @@ def agg_cost_function(
     ref_charts: List[color_conversions.ReferenceChart],
     target_gamut: color_conversions.Gamut,
 ) -> float:
-    assert len(source_charts) == len(ref_charts) == len(parameters), "source_charts, ref_charts, and parameters were different lengths!"
+    assert (
+        len(source_charts) == len(ref_charts) == len(parameters)
+    ), "source_charts, ref_charts, and parameters were different lengths!"
     avg_de = 0.0
     parameters = Parameters.update_parameter_list_from_numpy(params, parameters)
-    for i, (parameter, source_chart, ref_chart) in enumerate(zip(parameters, source_charts, ref_charts)):
+    for i, (parameter, source_chart, ref_chart) in enumerate(
+        zip(parameters, source_charts, ref_charts)
+    ):
         if i > 0:
             assert parameters[i].solve_matrix == False
-        mat = parameters[0].matrix # all charts share the same matrix.
+        mat = parameters[0].matrix  # all charts share the same matrix.
         exp = parameter.exposure
         wb = parameter.white_balance
-        source_lab: color_conversions.LABChart = chart_pipeline(source_chart, exp, mat, wb) \
-            .convert_to_xyz(target_gamut.get_conversion_to_xyz()) \
-            .chromatic_adaptation(target_gamut.white.convert_to_xyz(), ref_chart.reference_white) \
+        source_lab: color_conversions.LABChart = (
+            chart_pipeline(source_chart, exp, mat, wb)
+            .convert_to_xyz(target_gamut.get_conversion_to_xyz())
+            .chromatic_adaptation(
+                target_gamut.white.convert_to_xyz(), ref_chart.reference_white
+            )
             .convert_to_lab(ref_chart.reference_white)
+        )
         de = ref_chart.compute_delta_e(source_lab)
         avg_de += de
     avg_de /= len(parameters)
     return avg_de
+
 
 def optimize(
     source_chart: color_conversions.RGBChart,
@@ -199,6 +220,7 @@ def optimize(
     )
     return parameters_list[0]
 
+
 def optimize_nd(
     source_charts: List[color_conversions.RGBChart],
     reference_charts: List[color_conversions.ReferenceChart],
@@ -207,28 +229,51 @@ def optimize_nd(
     parameters: List[Parameters],
 ) -> List[Parameters]:
     params = Parameters.list_to_numpy(parameters)
-    res: OptimizeResult = minimize(agg_cost_function, params, (parameters, source_charts, reference_charts, target_gamut))
+    res: OptimizeResult = minimize(
+        agg_cost_function,
+        params,
+        (parameters, source_charts, reference_charts, target_gamut),
+    )
     optimized = res.x
     if verbose:
         parameters = Parameters.update_parameter_list_from_numpy(params, parameters)
         for i, parameter in enumerate(parameters):
             print(f"Image {i}")
-            print("  Initial Delta-E: ", cost_function(parameter.to_numpy_parameters(), parameter, source_charts[i], reference_charts[i], target_gamut))
+            print(
+                "  Initial Delta-E: ",
+                cost_function(
+                    parameter.to_numpy_parameters(),
+                    parameter,
+                    source_charts[i],
+                    reference_charts[i],
+                    target_gamut,
+                ),
+            )
 
         parameters = Parameters.update_parameter_list_from_numpy(optimized, parameters)
         for i, parameter in enumerate(parameters):
             print(f"Image {i}")
-            print("  Final Delta-E: ", cost_function(parameter.to_numpy_parameters(), parameter, source_charts[i], reference_charts[i], target_gamut))
+            print(
+                "  Final Delta-E: ",
+                cost_function(
+                    parameter.to_numpy_parameters(),
+                    parameter,
+                    source_charts[i],
+                    reference_charts[i],
+                    target_gamut,
+                ),
+            )
         print(res.message)
     parameters = Parameters.update_parameter_list_from_numpy(optimized, parameters)
     return parameters
+
 
 def optimize_exp_wb(
     source_chart: color_conversions.RGBChart,
     reference_chart: color_conversions.ReferenceChart,
     source_gamut: color_conversions.Gamut,
     target_gamut: color_conversions.Gamut,
-    verbose: bool=False,
+    verbose: bool = False,
 ) -> Parameters:
     return optimize_nd_exp_wb(
         [source_chart],
@@ -238,12 +283,13 @@ def optimize_exp_wb(
         verbose=verbose,
     )[0]
 
+
 def optimize_exp(
     source_chart: color_conversions.RGBChart,
     reference_chart: color_conversions.ReferenceChart,
     source_gamut: color_conversions.Gamut,
     target_gamut: color_conversions.Gamut,
-    verbose: bool=False,
+    verbose: bool = False,
 ) -> Parameters:
     return optimize_nd_exp(
         [source_chart],
@@ -253,12 +299,13 @@ def optimize_exp(
         verbose=verbose,
     )[0]
 
+
 def optimize_nd_exp_wb(
     source_charts: List[color_conversions.RGBChart],
     reference_charts: List[color_conversions.ReferenceChart],
     source_gamut: color_conversions.Gamut,
     target_gamut: color_conversions.Gamut,
-    verbose: bool=False,
+    verbose: bool = False,
 ) -> List[Parameters]:
     return optimize_nd(
         source_charts,
@@ -273,12 +320,13 @@ def optimize_nd_exp_wb(
         ],
     )
 
+
 def optimize_nd_exp(
     source_charts: List[color_conversions.RGBChart],
     reference_charts: List[color_conversions.ReferenceChart],
     source_gamut: color_conversions.Gamut,
     target_gamut: color_conversions.Gamut,
-    verbose: bool=False,
+    verbose: bool = False,
 ) -> List[Parameters]:
     return optimize_nd(
         source_charts,
