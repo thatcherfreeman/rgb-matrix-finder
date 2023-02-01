@@ -8,7 +8,7 @@ def read_text_file(fn: str) -> List[str]:
 
 def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
     # Parses the X-Rite color chart official specification
-    reference_white: Optional[color_conversions.XYZChart] = None
+    reference_white: color_conversions.XYZChart = color_conversions.STD_A  # default
     patches: List[List[float]] = []
     verified_lab = False
     highest_patch_coord = ("A", 0)
@@ -28,7 +28,7 @@ def load_reference_chart(lines: List[str]) -> Tuple[color_conversions.ReferenceC
             groups = matches.groups()
             exp_num_patches: int = int(groups[0])
 
-        matches = re.match(r"([A-Z]*)(\d*)\s+(-?[\d,]+)\s+(-?[\d,]+)\s+(-?[\d,]+)", l)
+        matches = re.match(r"([A-Z]*)(\d*)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)\s+(-?[\d,\.]+)", l)
         if matches is not None:
             groups = matches.groups()
             groups_reformatted = [x.replace(",", ".") for x in groups]

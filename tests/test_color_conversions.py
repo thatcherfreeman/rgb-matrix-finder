@@ -35,12 +35,12 @@ def test_labchart() -> None:
     assert np.sum(np.abs(xyz.colors - np.array([[1.0, 1.0, 1.0]]))) < 0.01
 
     lab2 = color_conversions.LABChart([[100.0, 10.0, 10.0]])
-    xyz = lab2.convert_to_xyz(color_conversions.STD_E).convert_to_xyy(color_conversions.STD_E)
-    assert np.sum(np.abs(xyz.colors - np.array([[0.36360, 0.34263, 1.0]]))) < 0.0001
+    xyy = lab2.convert_to_xyz(color_conversions.STD_E).convert_to_xyy(color_conversions.STD_E)
+    assert np.sum(np.abs(xyy.colors - np.array([[0.36360, 0.34263, 1.0]]))) < 0.0001
 
     lab3 = color_conversions.LABChart([[100.0, -10.0, -10.0]])
-    xyz = lab3.convert_to_xyz(color_conversions.STD_D65).convert_to_xyy(color_conversions.STD_D65)
-    assert np.sum(np.abs(xyz.colors - np.array([[0.28354, 0.31695, 1.0]]))) < 0.0001
+    xyy = lab3.convert_to_xyz(color_conversions.STD_D65).convert_to_xyy(color_conversions.STD_D65)
+    assert np.sum(np.abs(xyy.colors - np.array([[0.28354, 0.31695, 1.0]]))) < 0.0001
 
     lab4 = color_conversions.LABChart([[10, 20, 30]])
     lab5 = color_conversions.LABChart([[25, 10, 100]])
