@@ -23,6 +23,9 @@ class ColorMatrix:
         self.to_state = to_state
         assert self.mat.shape == (3, 3)
 
+    def copy(self) -> "ColorMatrix":
+        return ColorMatrix(self.mat.copy(), self.from_state, self.to_state)
+
     def inverse(self) -> "ColorMatrix":
         m = ColorMatrix(np.linalg.pinv(self.mat), self.to_state, self.from_state)
         return m
@@ -53,6 +56,9 @@ class ColorMatrix:
             @ M
         )
         return ColorMatrix(result, ImageState.XYZ, ImageState.XYZ)
+
+
+MATRIX_RGB_IDENTITY = ColorMatrix(np.eye(3), ImageState.RGB, ImageState.RGB)
 
 
 class Gamut:

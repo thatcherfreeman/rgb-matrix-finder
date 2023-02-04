@@ -52,6 +52,17 @@ class Parameters:
             self.white_balance = white_balance
             self._solve_white_balance = False
 
+    def copy(self) -> "Parameters":
+        out = Parameters(
+            self.matrix.copy() if not self.solve_matrix else None,
+            self.exposure if not self.solve_exposure else None,
+            self.white_balance.copy() if not self.solve_white_balance else None,
+        )
+        assert (out.solve_matrix == self.solve_matrix)
+        assert (out.solve_exposure == self.solve_exposure)
+        assert (out.solve_white_balance == self.solve_white_balance)
+        return out
+
     @property
     def solve_matrix(self) -> bool:
         return self._solve_matrix
@@ -70,7 +81,7 @@ class Parameters:
         with a minimal length.
         """
         mat_params = self.matrix.mat[:, :2].reshape((6,))
-        exposure_params = np.array(1.0)
+        exposure_params = np.array(self.exposure)
         wb_params = np.array(
             [self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]]
         )
@@ -83,7 +94,8 @@ class Parameters:
             params = np.concatenate([params, wb_params])
         return params
 
-    def update_from_numpy(self, params: np.ndarray) -> np.ndarray:
+    def update_from_numpy(self, params: np.ndarray) -> Tuple[np.ndarray, "Parameters"]:
+        out = self.copy()
         if self._solve_matrix:
             arr = np.zeros((3, 3))
             arr[:, :2] = params[:6].reshape((3, 2))
@@ -93,19 +105,19 @@ class Parameters:
                 color_conversions.ImageState.RGB,
                 color_conversions.ImageState.RGB,
             )
-            self.matrix = mat
+            out.matrix = mat
             params = params[6:]
         if self._solve_exposure:
-            self.exposure = params[0]
+            out.exposure = params[0]
             params = params[1:]
         if self._solve_white_balance:
-            self.white_balance = color_conversions.ColorMatrix(
+            out.white_balance = color_conversions.ColorMatrix(
                 np.diag(np.array([params[0], 1.0, params[1]])),
                 color_conversions.ImageState.RGB,
                 color_conversions.ImageState.RGB,
             )
             params = params[2:]
-        return params
+        return params, out
 
     @staticmethod
     def list_to_numpy(parameters_list: List["Parameters"]) -> np.ndarray:
@@ -115,10 +127,13 @@ class Parameters:
     def update_parameter_list_from_numpy(
         np_params: np.ndarray, parameters_list: List["Parameters"]
     ) -> List["Parameters"]:
+        params = np_params.copy()
         output = []
         for parameter in parameters_list:
-            np_params = parameter.update_from_numpy(np_params)
-            output.append(parameter)
+            params, new_parameter = parameter.update_from_numpy(params)
+            output.append(new_parameter)
+        for i in range(1, len(output)):
+            output[i].matrix = output[0].matrix
         return output
 
 
@@ -190,7 +205,7 @@ def agg_cost_function(
         zip(parameters, source_charts, ref_charts)
     ):
         if i > 0:
-            assert parameters[i].solve_matrix == False
+            assert parameters[i].solve_matrix is False
         mat = parameters[0].matrix  # all charts share the same matrix.
         exp = parameter.exposure
         wb = parameter.white_balance
@@ -236,36 +251,47 @@ def optimize_nd(
     )
     optimized = res.x
     if verbose:
-        parameters = Parameters.update_parameter_list_from_numpy(params, parameters)
-        for i, parameter in enumerate(parameters):
+        parameters_old = Parameters.update_parameter_list_from_numpy(params, parameters)
+        parameters_new = Parameters.update_parameter_list_from_numpy(optimized, parameters)
+        for i, (parameter_old, parameter_new) in enumerate(zip(parameters_old, parameters_new)):
             print(f"Image {i}")
             print(
                 "  Initial Delta-E: ",
                 cost_function(
-                    parameter.to_numpy_parameters(),
-                    parameter,
+                    parameter_old.to_numpy_parameters(),
+                    parameter_old,
+                    source_charts[i],
+                    reference_charts[i],
+                    target_gamut,
+                ),
+            )
+            print(
+                "  Final Delta-E: ",
+                cost_function(
+                    parameter_new.to_numpy_parameters(),
+                    parameter_new,
                     source_charts[i],
                     reference_charts[i],
                     target_gamut,
                 ),
             )
 
-        parameters = Parameters.update_parameter_list_from_numpy(optimized, parameters)
-        for i, parameter in enumerate(parameters):
-            print(f"Image {i}")
-            print(
-                "  Final Delta-E: ",
-                cost_function(
-                    parameter.to_numpy_parameters(),
-                    parameter,
-                    source_charts[i],
-                    reference_charts[i],
-                    target_gamut,
-                ),
-            )
+        # parameters_new = Parameters.update_parameter_list_from_numpy(optimized, parameters)
+        # for i, parameter_new in enumerate(parameters_new):
+        #     print(f"Image {i}")
+        #     print(
+        #         "  Final Delta-E: ",
+        #         cost_function(
+        #             parameter_new.to_numpy_parameters(),
+        #             parameter_new,
+        #             source_charts[i],
+        #             reference_charts[i],
+        #             target_gamut,
+        #         ),
+        #     )
         print(res.message)
-    parameters = Parameters.update_parameter_list_from_numpy(optimized, parameters)
-    return parameters
+    parameters_out = Parameters.update_parameter_list_from_numpy(optimized, parameters)
+    return parameters_out
 
 
 def optimize_exp_wb(
