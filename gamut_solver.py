@@ -121,9 +121,7 @@ def main() -> None:
     for source_image, source_chart, ref_chart, sample_positions in zip(
         source_images, source_charts, ref_charts, source_image_sample_positions
     ):
-        draw_samples(
-            source_image, source_chart, ref_chart, sample_positions, show=True
-        )
+        draw_samples(source_image, source_chart, ref_chart, sample_positions, show=True)
 
     # Optimize
     if args.correct_wb:
@@ -157,7 +155,9 @@ def main() -> None:
             parameters=initial_parameters,
         )
     else:
-        parameters = optimizer.optimize_nd_exp_wb(source_charts, ref_charts, source_gamut, target_gamut, True)
+        parameters = optimizer.optimize_nd_exp_wb(
+            source_charts, ref_charts, source_gamut, target_gamut, True
+        )
 
     # Measure results.
     mat, exp, wb = (
@@ -167,7 +167,10 @@ def main() -> None:
     )
     print("solved matrix: ", mat.mat)
     print("Image 0 Corrected exposure: ", exp)
-    print("Image 0 Optimized wb coefficients: ", [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]])
+    print(
+        "Image 0 Optimized wb coefficients: ",
+        [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]],
+    )
     gamut = color_conversions.Gamut.get_gamut_from_conversion_matrix(mat, target_gamut)
     print(
         "Gamut Primaries: ",
@@ -200,7 +203,11 @@ def main() -> None:
         color_conversions.GAMUT_REC709
     )
     for source_image, source_chart, ref_chart, sample_positions, parameter in zip(
-        source_images, source_charts, ref_charts, source_image_sample_positions, parameters
+        source_images,
+        source_charts,
+        ref_charts,
+        source_image_sample_positions,
+        parameters,
     ):
         mat, exp, wb = parameter.matrix, parameter.exposure, parameter.white_balance
         draw_samples(

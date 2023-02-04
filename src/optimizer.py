@@ -58,9 +58,9 @@ class Parameters:
             self.exposure if not self.solve_exposure else None,
             self.white_balance.copy() if not self.solve_white_balance else None,
         )
-        assert (out.solve_matrix == self.solve_matrix)
-        assert (out.solve_exposure == self.solve_exposure)
-        assert (out.solve_white_balance == self.solve_white_balance)
+        assert out.solve_matrix == self.solve_matrix
+        assert out.solve_exposure == self.solve_exposure
+        assert out.solve_white_balance == self.solve_white_balance
         return out
 
     @property
@@ -252,8 +252,12 @@ def optimize_nd(
     optimized = res.x
     if verbose:
         parameters_old = Parameters.update_parameter_list_from_numpy(params, parameters)
-        parameters_new = Parameters.update_parameter_list_from_numpy(optimized, parameters)
-        for i, (parameter_old, parameter_new) in enumerate(zip(parameters_old, parameters_new)):
+        parameters_new = Parameters.update_parameter_list_from_numpy(
+            optimized, parameters
+        )
+        for i, (parameter_old, parameter_new) in enumerate(
+            zip(parameters_old, parameters_new)
+        ):
             print(f"Image {i}")
             print(
                 "  Initial Delta-E: ",
