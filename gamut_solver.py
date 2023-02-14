@@ -166,8 +166,12 @@ def main() -> None:
             verbose=True,
             parameters=initial_parameters,
         )
-    else:
+    elif args.correct_wb:
         parameters = optimizer.optimize_nd_exp_wb(
+            source_charts, ref_charts, source_gamut, target_gamut, True
+        )
+    else:
+        parameters = optimizer.optimize_nd_exp(
             source_charts, ref_charts, source_gamut, target_gamut, True
         )
 
@@ -198,8 +202,6 @@ def main() -> None:
     if source_gamut is None:
         info = {
             "matrix": mat.mat.tolist(),
-            "gain": exp,
-            "wb_coefficients": wb.mat.tolist(),
             "gamut": {
                 "red": gamut.red.colors.tolist(),
                 "green": gamut.green.colors.tolist(),
