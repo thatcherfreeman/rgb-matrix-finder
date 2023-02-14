@@ -79,11 +79,12 @@ def main() -> None:
 
     # Identify the files that we'll read as images.
     source_fns = [os.path.expanduser(x) for x in args.camera_chart.split(FN_SPLIT_CHAR)]
+    reference_fns = [os.path.expanduser(x) for x in args.reference_chart.split(FN_SPLIT_CHAR)]
 
     # Read Reference Chart
     ref_charts = []
     ref_patches = []
-    for i, fn in enumerate(args.reference_chart.split(FN_SPLIT_CHAR)):
+    for i, fn in enumerate(reference_fns):
         ref_chart, patches = reference_charts.load_reference_chart(
             reference_charts.read_text_file(fn)
         )
