@@ -7,6 +7,7 @@ import src.color_conversions as color_conversions
 
 
 def open_image(image_fn: str) -> np.ndarray:
+    print(f"Reading: {image_fn}")
     os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
     img: np.ndarray = cv2.imread(image_fn, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
     print(f"Read image data type of {img.dtype}")
@@ -32,10 +33,10 @@ def sample_image(img, x, y, radius_erode=0.5, patches=(6, 4)):
     return avg, pos
 
 
-def show_image(img):
+def show_image(img, title="image"):
     img = img.astype(np.float32)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    cv2.imshow("image", img)
+    cv2.imshow(title, img)
     cv2.waitKey(0)
 
 
@@ -76,6 +77,7 @@ def draw_samples(
     reference_chart: color_conversions.ReferenceChart,
     sample_positions: np.ndarray,
     show: bool = True,
+    title: str = "Image",
 ) -> np.ndarray:
     reference_colors = (
         reference_chart.convert_to_xyz(reference_chart.reference_white)
@@ -100,5 +102,5 @@ def draw_samples(
         cv2.rectangle(canvas, (c1, r1), (c2, r2), (1.0, 1.0, 1.0))
 
     if show:
-        show_image(np.maximum(canvas, 0.0) ** (1.0 / 2.4))
+        show_image(np.maximum(canvas, 0.0) ** (1.0 / 2.4), title=title)
     return canvas

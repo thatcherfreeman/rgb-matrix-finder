@@ -258,7 +258,7 @@ def optimize_nd(
         for i, (parameter_old, parameter_new) in enumerate(
             zip(parameters_old, parameters_new)
         ):
-            print(f"Image {i}")
+            print(f"\nImage {i}")
             print(
                 "  Initial Delta-E: ",
                 cost_function(
@@ -279,20 +279,6 @@ def optimize_nd(
                     target_gamut,
                 ),
             )
-
-        # parameters_new = Parameters.update_parameter_list_from_numpy(optimized, parameters)
-        # for i, parameter_new in enumerate(parameters_new):
-        #     print(f"Image {i}")
-        #     print(
-        #         "  Final Delta-E: ",
-        #         cost_function(
-        #             parameter_new.to_numpy_parameters(),
-        #             parameter_new,
-        #             source_charts[i],
-        #             reference_charts[i],
-        #             target_gamut,
-        #         ),
-        #     )
         print(res.message)
     parameters_out = Parameters.update_parameter_list_from_numpy(optimized, parameters)
     return parameters_out

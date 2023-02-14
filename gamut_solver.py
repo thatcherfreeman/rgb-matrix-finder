@@ -78,7 +78,7 @@ def main() -> None:
         )
 
     # Identify the files that we'll read as images.
-    source_fns = args.camera_chart.split(FN_SPLIT_CHAR)
+    source_fns = [os.path.expanduser(x) for x in args.camera_chart.split(FN_SPLIT_CHAR)]
 
     # Read Reference Chart
     ref_charts = []
@@ -118,10 +118,17 @@ def main() -> None:
     print(
         "Make sure the selected area and the reference chips are correctly placed on the chart!"
     )
-    for source_image, source_chart, ref_chart, sample_positions in zip(
-        source_images, source_charts, ref_charts, source_image_sample_positions
+    for i, (source_image, source_chart, ref_chart, sample_positions) in enumerate(
+        zip(source_images, source_charts, ref_charts, source_image_sample_positions)
     ):
-        draw_samples(source_image, source_chart, ref_chart, sample_positions, show=True)
+        draw_samples(
+            source_image,
+            source_chart,
+            ref_chart,
+            sample_positions,
+            show=True,
+            title=f"Input Image {i}",
+        )
 
     # Optimize
     if args.correct_wb:
@@ -160,20 +167,22 @@ def main() -> None:
         )
 
     # Measure results.
-    mat, exp, wb = (
-        parameters[0].matrix,
-        parameters[0].exposure,
-        parameters[0].white_balance,
-    )
-    print("solved matrix: ", mat.mat)
-    print("Image 0 Corrected exposure: ", exp)
-    print(
-        "Image 0 Optimized wb coefficients: ",
-        [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]],
-    )
+    mat = parameters[0].matrix
+    for i in range(len(parameters)):
+        exp, wb = (
+            parameters[i].exposure,
+            parameters[i].white_balance,
+        )
+        print(f"\nImage {i}")
+        print("  Corrected exposure: ", exp)
+        print(
+            "  Optimized wb coefficients: ",
+            [wb.mat[0, 0], wb.mat[1, 1], wb.mat[2, 2]],
+        )
+    print("\nsolved matrix: \n", mat.mat)
     gamut = color_conversions.Gamut.get_gamut_from_conversion_matrix(mat, target_gamut)
     print(
-        "Gamut Primaries: ",
+        "\nGamut Primaries: ",
         gamut.red.colors,
         gamut.green.colors,
         gamut.blue.colors,
@@ -202,12 +211,20 @@ def main() -> None:
     gamut_to_display = target_gamut.get_conversion_to_gamut(
         color_conversions.GAMUT_REC709
     )
-    for source_image, source_chart, ref_chart, sample_positions, parameter in zip(
-        source_images,
-        source_charts,
-        ref_charts,
-        source_image_sample_positions,
-        parameters,
+    for i, (
+        source_image,
+        source_chart,
+        ref_chart,
+        sample_positions,
+        parameter,
+    ) in enumerate(
+        zip(
+            source_images,
+            source_charts,
+            ref_charts,
+            source_image_sample_positions,
+            parameters,
+        )
     ):
         mat, exp, wb = parameter.matrix, parameter.exposure, parameter.white_balance
         draw_samples(
@@ -219,6 +236,7 @@ def main() -> None:
             ref_chart,
             sample_positions,
             show=True,
+            title=f"Corrected Image {i}",
         )
 
 
