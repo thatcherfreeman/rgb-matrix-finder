@@ -225,6 +225,12 @@ if __name__ == "__main__":
         default=False,
         help="Set this flag to search for a 6x4 chart instead of a 4x6 chart.",
     )
+    parser.add_argument(
+        "--no-chart",
+        action="store_true",
+        default=False,
+        help="Just do pixel per pixel match."
+    )
     args = parser.parse_args()
 
     # Want to find transformation that converts src to ref.
@@ -236,11 +242,18 @@ if __name__ == "__main__":
     src_img = open_image(src)
 
     chart_shape = (6, 4) if args.tall_chart else (4, 6)
-    ref_samples, _ = get_samples(ref_img, chart_shape)
-    src_samples, _ = get_samples(src_img, chart_shape)
-    premultiply_amt = np.mean(ref_samples / src_samples)
-    print(f"Scaling source samples by {premultiply_amt} before fitting.")
-    src_samples *= premultiply_amt
+    if args.no_chart:
+        ref_samples = ref_img
+        src_samples = src_img
+        assert ref_img.shape == src_img.shape
+        h, w, c = ref_img.shape
+        chart_shape = (h, w)
+    else:
+        ref_samples, _ = get_samples(ref_img, chart_shape)
+        src_samples, _ = get_samples(src_img, chart_shape)
+        premultiply_amt = np.mean(ref_samples / src_samples)
+        print(f"Scaling source samples by {premultiply_amt} before fitting.")
+        src_samples *= premultiply_amt
 
     if method == "ls":
         fit_colors = fit_colors_ls

@@ -6,3 +6,6 @@ mypy
 pytest-cov
 scipy
 black
+torch
+matplotlib
+tqdm

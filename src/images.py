@@ -1,5 +1,6 @@
 import os
 
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import cv2  # type:ignore
 import numpy as np
 from typing import Tuple, List
