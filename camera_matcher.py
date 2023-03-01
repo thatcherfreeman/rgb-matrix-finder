@@ -229,7 +229,7 @@ if __name__ == "__main__":
         "--no-chart",
         action="store_true",
         default=False,
-        help="Just do pixel per pixel match."
+        help="Just do pixel per pixel match.",
     )
     args = parser.parse_args()
 

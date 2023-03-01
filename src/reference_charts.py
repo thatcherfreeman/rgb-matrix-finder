@@ -49,7 +49,9 @@ def load_reference_chart(
                 highest_patch_coord[0], groups_reformatted[0]
             ), max(highest_patch_coord[1], int(groups_reformatted[1]))
 
-        matches = re.match(r"sample_name\s+([\S\_]+)\s+([\S\_]+)\s+([\S\_]+)", l.lower())
+        matches = re.match(
+            r"sample_name\s+([\S\_]+)\s+([\S\_]+)\s+([\S\_]+)", l.lower()
+        )
         if matches is not None:
             groups = matches.groups()
             assert [x.lower() for x in groups] == ["lab_l", "lab_a", "lab_b"]
