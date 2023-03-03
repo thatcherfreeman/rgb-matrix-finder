@@ -284,13 +284,13 @@ if __name__ == "__main__":
         draw_samples(
             src_img * premultiply_amt,
             RGBChart(scaled_src_samples),
-            RGBChart(scaled_src_samples),
+            RGBChart(ref_samples),
             src_positions,
             title="Source Samples",
         )
         draw_samples(
             ref_img,
-            RGBChart(ref_samples),
+            RGBChart(scaled_src_samples),
             RGBChart(ref_samples),
             ref_positions,
             title="Target Samples",
