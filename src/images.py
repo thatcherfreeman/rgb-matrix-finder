@@ -3,7 +3,7 @@ import os
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 import cv2  # type:ignore
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple, List, Union
 import src.color_conversions as color_conversions
 
 
@@ -75,22 +75,27 @@ def get_samples(
 def draw_samples(
     img: np.ndarray,
     source_chart: color_conversions.Chart,
-    reference_chart: color_conversions.ReferenceChart,
+    reference_chart: Union[color_conversions.ReferenceChart, color_conversions.RGBChart],
     sample_positions: np.ndarray,
     show: bool = True,
     title: str = "Image",
 ) -> np.ndarray:
-    reference_colors = (
-        reference_chart.convert_to_xyz(reference_chart.reference_white)
-        .chromatic_adaptation(
-            reference_chart.reference_white,
-            color_conversions.GAMUT_REC709.white.convert_to_xyz(),
+    if isinstance(reference_chart, color_conversions.ReferenceChart):
+        reference_colors = (
+            reference_chart.convert_to_xyz(reference_chart.reference_white)
+            .chromatic_adaptation(
+                reference_chart.reference_white,
+                color_conversions.GAMUT_REC709.white.convert_to_xyz(),
+            )
+            .convert_to_rgb(
+                color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()
+            )
+            .colors
         )
-        .convert_to_rgb(
-            color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()
-        )
-        .colors
-    )
+    elif isinstance(reference_chart, color_conversions.RGBChart):
+        reference_colors = reference_chart.colors
+    else:
+        raise ValueError(f"Unexpected type for reference_chart: {type(reference_chart)}")
     source_colors = source_chart.colors
     sample_positions = flatten(sample_positions).astype(int)
     canvas = img.copy()

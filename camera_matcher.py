@@ -10,6 +10,10 @@ from src.images import (
     flatten,
     get_samples,
     open_image,
+    draw_samples,
+)
+from src.color_conversions import (
+    RGBChart
 )
 
 # Intended to help you match one Scene Linear image of a color chart
@@ -248,12 +252,13 @@ if __name__ == "__main__":
         assert ref_img.shape == src_img.shape
         h, w, c = ref_img.shape
         chart_shape = (h, w)
+        scaled_src_samples = src_samples
     else:
-        ref_samples, _ = get_samples(ref_img, chart_shape)
-        src_samples, _ = get_samples(src_img, chart_shape)
+        ref_samples, ref_positions = get_samples(ref_img, chart_shape, flat=True)
+        src_samples, src_positions = get_samples(src_img, chart_shape, flat=True)
         premultiply_amt = np.mean(ref_samples / src_samples)
         print(f"Scaling source samples by {premultiply_amt} before fitting.")
-        src_samples *= premultiply_amt
+        scaled_src_samples = src_samples * premultiply_amt
 
     if method == "ls":
         fit_colors = fit_colors_ls
@@ -262,40 +267,38 @@ if __name__ == "__main__":
     elif method == "wp":
         fit_colors = fit_colors_wppls
 
-    parameters, model_func = fit_colors(src_samples, ref_samples, args)
+    parameters, model_func = fit_colors(scaled_src_samples, ref_samples, args)
 
-    estimated_ref_samples = model_func(flatten(src_samples)).reshape(src_samples.shape)
-    print("Initial mean ABS error: ", np.mean(np.abs(src_samples - ref_samples)))
+    estimated_ref_samples = model_func(flatten(scaled_src_samples)).reshape(scaled_src_samples.shape)
+    print("Initial mean ABS error: ", np.mean(np.abs(scaled_src_samples - ref_samples)))
     print(
         "Final mean ABS error: ", np.mean(np.abs(estimated_ref_samples - ref_samples))
     )
-    print("Initial MSE error: ", np.mean((src_samples - ref_samples) ** 2))
+    print("Initial MSE error: ", np.mean((scaled_src_samples - ref_samples) ** 2))
     print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples) ** 2))
     print(repr(parameters))
 
-    # Draw the color chip chart.
-    est_titles = np.zeros(
-        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
-        dtype=object,
-    )
-    ref_titles = np.zeros(
-        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
-        dtype=object,
-    )
-    src_titles = np.zeros(
-        (estimated_ref_samples.shape[0], estimated_ref_samples.shape[1], 1),
-        dtype=object,
-    )
-    for r, c in product(
-        range(estimated_ref_samples.shape[0]), range(estimated_ref_samples.shape[1])
-    ):
-        x = estimated_ref_samples[r, c]
-        y = ref_samples[r, c]
-        est_titles[r, c, 0] = f"est error: {np.mean(np.abs(x - y)):.4f}"
-        ref_titles[r, c, 0] = "reference"
-        src_titles[r, c, 0] = f"src error: {np.mean(np.abs(src_samples[r,c] - y)):.4f}"
 
-    plot_samples(
-        np.concatenate([src_samples, estimated_ref_samples, ref_samples], axis=1),
-        np.concatenate([src_titles, est_titles, ref_titles], axis=1),
-    )
+    if args.no_chart is False:
+        src_img_shape = src_img.shape
+        draw_samples(
+            src_img * premultiply_amt,
+            RGBChart(scaled_src_samples),
+            RGBChart(scaled_src_samples),
+            src_positions,
+            title="Source Samples",
+        )
+        draw_samples(
+            ref_img,
+            RGBChart(ref_samples),
+            RGBChart(ref_samples),
+            ref_positions,
+            title="Target Samples",
+        )
+        draw_samples(
+            model_func(flatten(src_img) * premultiply_amt).reshape(src_img_shape),
+            RGBChart(estimated_ref_samples),
+            RGBChart(ref_samples),
+            src_positions,
+            title="Corrected source samples",
+        )
