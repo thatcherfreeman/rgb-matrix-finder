@@ -11,10 +11,9 @@ from src.images import (
     get_samples,
     open_image,
     draw_samples,
+    show_image,
 )
-from src.color_conversions import (
-    RGBChart
-)
+from src.color_conversions import RGBChart
 
 # Intended to help you match one Scene Linear image of a color chart
 # from one camera to another.
@@ -269,7 +268,9 @@ if __name__ == "__main__":
 
     parameters, model_func = fit_colors(scaled_src_samples, ref_samples, args)
 
-    estimated_ref_samples = model_func(flatten(scaled_src_samples)).reshape(scaled_src_samples.shape)
+    estimated_ref_samples = model_func(flatten(scaled_src_samples)).reshape(
+        scaled_src_samples.shape
+    )
     print("Initial mean ABS error: ", np.mean(np.abs(scaled_src_samples - ref_samples)))
     print(
         "Final mean ABS error: ", np.mean(np.abs(estimated_ref_samples - ref_samples))
@@ -278,9 +279,8 @@ if __name__ == "__main__":
     print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples) ** 2))
     print(repr(parameters))
 
-
+    src_img_shape = src_img.shape
     if args.no_chart is False:
-        src_img_shape = src_img.shape
         draw_samples(
             src_img * premultiply_amt,
             RGBChart(scaled_src_samples),
@@ -301,4 +301,11 @@ if __name__ == "__main__":
             RGBChart(ref_samples),
             src_positions,
             title="Corrected source samples",
+        )
+    else:
+        show_image(src_img ** (1.0 / 2.4), "Source")
+        show_image(ref_img ** (1.0 / 2.4), "Reference")
+        show_image(
+            model_func(flatten(src_img)).reshape(src_img_shape) ** (1.0 / 2.4),
+            "Converted Source",
         )

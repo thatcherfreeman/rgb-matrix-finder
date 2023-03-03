@@ -75,7 +75,9 @@ def get_samples(
 def draw_samples(
     img: np.ndarray,
     source_chart: color_conversions.Chart,
-    reference_chart: Union[color_conversions.ReferenceChart, color_conversions.RGBChart],
+    reference_chart: Union[
+        color_conversions.ReferenceChart, color_conversions.RGBChart
+    ],
     sample_positions: np.ndarray,
     show: bool = True,
     title: str = "Image",
@@ -95,7 +97,9 @@ def draw_samples(
     elif isinstance(reference_chart, color_conversions.RGBChart):
         reference_colors = reference_chart.colors
     else:
-        raise ValueError(f"Unexpected type for reference_chart: {type(reference_chart)}")
+        raise ValueError(
+            f"Unexpected type for reference_chart: {type(reference_chart)}"
+        )
     source_colors = source_chart.colors
     sample_positions = flatten(sample_positions).astype(int)
     canvas = img.copy()
