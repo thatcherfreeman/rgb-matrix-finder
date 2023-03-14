@@ -4,7 +4,8 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import matplotlib.pyplot as plt  # type:ignore
 from tqdm import tqdm  # type:ignore
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
+from typing import Callable, Tuple, Any
 from itertools import product
 from src.images import (
     flatten,
@@ -79,7 +80,7 @@ def fit_colors_ls(input_rgb, output_rgb, args):
     if args.enforce_whitepoint:
         col_sum = np.sum(mat, axis=0, keepdims=True)
         mat = mat / col_sum
-    return (mat.T, bias), lambda x: x @ mat + bias
+    return (mat.T, bias), np.linalg.pinv(mat.T), lambda x: x @ mat + bias
 
 
 def fit_colors_wppls(input_rgb, output_rgb, args):
@@ -113,7 +114,7 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
         mat[:, [i]] = c
 
     mat2 = NT @ mat @ np.linalg.pinv(MT)
-    return mat2.T, lambda x: x @ mat2
+    return mat2.T, np.linalg.pinv(mat2.T), lambda x: x @ mat2
 
 
 def fit_colors_gd(input_rgb, output_rgb, args):
@@ -161,11 +162,16 @@ def fit_colors_gd(input_rgb, output_rgb, args):
 
     model.eval()
     return (
-        model.mat.weight.data.detach().cpu().numpy(),
-        model.bias.detach().cpu().numpy(),
-    ), lambda x: model(
-        torch.tensor(x, device=device, dtype=torch.float32)
-    ).detach().cpu().numpy()
+        (
+            model.mat.weight.data.detach().cpu().numpy(),
+            model.bias.detach().cpu().numpy(),
+        ),
+        np.linalg.pinv(model.mat.weight.data.detach().cpu().numpy()),
+        lambda x: model(torch.tensor(x, device=device, dtype=torch.float32))
+        .detach()
+        .cpu()
+        .numpy(),
+    )
 
 
 def plot_samples(samples, labels):
@@ -259,6 +265,10 @@ if __name__ == "__main__":
         print(f"Scaling source samples by {premultiply_amt} before fitting.")
         scaled_src_samples = src_samples * premultiply_amt
 
+    fit_colors: Callable[
+        [np.ndarray, np.ndarray, Namespace],
+        Tuple[Any, Any, Callable[[np.ndarray], np.ndarray]],
+    ]
     if method == "ls":
         fit_colors = fit_colors_ls
     elif method == "gd":
@@ -266,7 +276,9 @@ if __name__ == "__main__":
     elif method == "wp":
         fit_colors = fit_colors_wppls
 
-    parameters, model_func = fit_colors(scaled_src_samples, ref_samples, args)
+    parameters, inv_parameters, model_func = fit_colors(
+        scaled_src_samples, ref_samples, args
+    )
 
     estimated_ref_samples = model_func(flatten(scaled_src_samples)).reshape(
         scaled_src_samples.shape
@@ -277,7 +289,9 @@ if __name__ == "__main__":
     )
     print("Initial MSE error: ", np.mean((scaled_src_samples - ref_samples) ** 2))
     print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples) ** 2))
-    print(repr(parameters))
+    print("Forward matrix: ", repr(parameters))
+    print("Inverse: ", repr(inv_parameters))
+
 
     src_img_shape = src_img.shape
     if args.no_chart is False:
