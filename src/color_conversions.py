@@ -52,7 +52,12 @@ class ColorMatrix:
         M_inv = np.linalg.pinv(M)
         result = (
             M_inv
-            @ np.diag((output_white_point.colors / input_white_point.colors)[0])
+            @ np.diag(
+                (
+                    (output_white_point.colors / output_white_point.colors[0, 1])
+                    / (input_white_point.colors / input_white_point.colors[0, 1])
+                )[0]
+            )
             @ M
         )
         return ColorMatrix(result, ImageState.XYZ, ImageState.XYZ)

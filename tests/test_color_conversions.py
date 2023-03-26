@@ -79,3 +79,16 @@ def test_rgbchart() -> None:
         )
         < 1e-4
     )
+
+
+def test_chromatic_adaptation() -> None:
+    mat1 = color_conversions.ColorMatrix.get_chromatic_adaptation_matrix(
+        color_conversions.STD_D50, color_conversions.STD_D65
+    )
+    scaled_d50 = color_conversions.STD_D50
+    scaled_d50.colors *= 15.0
+    mat2 = color_conversions.ColorMatrix.get_chromatic_adaptation_matrix(
+        scaled_d50, color_conversions.STD_D65
+    )
+
+    assert np.sum(np.abs(mat1.mat - mat2.mat)) < 1e-4

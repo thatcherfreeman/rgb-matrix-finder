@@ -292,7 +292,6 @@ if __name__ == "__main__":
     print("Forward matrix: ", repr(parameters))
     print("Inverse: ", repr(inv_parameters))
 
-
     src_img_shape = src_img.shape
     if args.no_chart is False:
         draw_samples(
