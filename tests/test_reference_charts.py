@@ -120,3 +120,34 @@ def test_load_reference_chart2() -> None:
         )
         < 0.0001
     )
+
+
+def test_load_reference_chart_xyz() -> None:
+    lines = file_contents.split("\n")
+    reference_chart, patches = reference_charts.load_reference_chart(lines)
+    assert (
+        np.sum(np.abs(reference_chart.colors[0] - np.array([[37.54, 14.37, 14.92]])))
+        < 0.0001
+    )
+
+    xyz_chart_std_a = reference_chart.convert_to_xyz(color_conversions.STD_A)
+    assert (
+        np.sum(
+            np.abs(xyz_chart_std_a.colors[0] - np.array([[0.12946, 0.09832, 0.02062]]))
+        )
+        < 0.0001
+    )
+
+    foo = color_conversions.ColorMatrix.get_chromatic_adaptation_matrix(
+        color_conversions.STD_A, color_conversions.STD_D65
+    )
+
+    xyz_chart_d65 = xyz_chart_std_a.chromatic_adaptation(
+        color_conversions.STD_A, color_conversions.STD_D65
+    )
+    assert (
+        np.sum(
+            np.abs(xyz_chart_d65.colors[0] - np.array([[0.10712, 0.09498, 0.06519]]))
+        )
+        < 0.0001
+    )

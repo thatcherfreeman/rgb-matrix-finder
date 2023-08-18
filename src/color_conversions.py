@@ -50,16 +50,12 @@ class ColorMatrix:
             ]
         )
         M_inv = np.linalg.pinv(M)
-        result = (
-            M_inv
-            @ np.diag(
-                (
-                    (output_white_point.colors / output_white_point.colors[0, 1])
-                    / (input_white_point.colors / input_white_point.colors[0, 1])
-                )[0]
-            )
-            @ M
-        )
+        output_lms = (
+            M @ (output_white_point.colors / output_white_point.colors[0, 1]).T
+        )  # Shape (3, 1)
+        input_lms = M @ (input_white_point.colors / input_white_point.colors[0, 1]).T
+        M_adapt = np.diag((output_lms / input_lms)[:, 0])
+        result = M_inv @ M_adapt @ M
         return ColorMatrix(result, ImageState.XYZ, ImageState.XYZ)
 
 
@@ -325,7 +321,7 @@ class ReferenceChart(LABChart):
         self.reference_white = reference_white
 
 
-STD_A: XYZChart = XYYChart(colors=np.array([[0.34842, 0.35161, 1.0]])).convert_to_xyz()
+STD_A: XYZChart = XYYChart(colors=np.array([[0.44757, 0.40745, 1.0]])).convert_to_xyz()
 STD_C: XYZChart = XYYChart(colors=np.array([[0.31006, 0.31616, 1.0]])).convert_to_xyz()
 STD_D65: XYZChart = XYYChart(colors=np.array([[0.3127, 0.3290, 1.0]])).convert_to_xyz()
 STD_D50: XYZChart = XYYChart(
