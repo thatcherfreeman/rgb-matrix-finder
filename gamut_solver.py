@@ -37,7 +37,7 @@ def main() -> None:
         default="DWG",
         const="DWG",
         nargs="?",
-        choices=["DWG", "AP0"],
+        choices=["DWG", "AP0", "AWG3", "AWG4"],
         help="Choose a target color space for the matrix (default: %(default)s)",
     )
     parser.add_argument(
@@ -60,6 +60,10 @@ def main() -> None:
         target_gamut = color_conversions.GAMUT_DWG
     elif args.target_gamut == "AP0":
         target_gamut = color_conversions.GAMUT_AP0
+    elif args.target_gamut == "AWG3":
+        target_gamut = color_conversions.GAMUT_AWG3
+    elif args.target_gamut == "AWG4":
+        target_gamut = color_conversions.GAMUT_AWG4
     else:
         raise ValueError(f"Unexpected target_gamut {args.target_gamut}")
 
