@@ -1,11 +1,8 @@
 numpy
 opencv-python
-tqdm
 pylint
 mypy
 pytest-cov
 scipy
 black
-torch
 matplotlib
-tqdm

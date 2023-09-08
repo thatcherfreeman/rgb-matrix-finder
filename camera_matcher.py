@@ -1,12 +1,10 @@
-import torch
-from torch import nn, optim
-from torch.utils.data import TensorDataset, DataLoader
+from enum import Enum
 import numpy as np
 import matplotlib.pyplot as plt  # type:ignore
-from tqdm import tqdm  # type:ignore
+from scipy.optimize import minimize, OptimizeResult  # type:ignore
 from argparse import ArgumentParser, Namespace
 from typing import Callable, Tuple, Any
-from itertools import product
+
 from src.images import (
     flatten,
     get_samples,
@@ -15,48 +13,16 @@ from src.images import (
     show_image,
 )
 from src.color_conversions import RGBChart
+import src.color_conversions as color_conversions
 
 # Intended to help you match one Scene Linear image of a color chart
 # from one camera to another.
 
 
-class glass(nn.Module):
-    # Model the change from src_img to ref_img as ref = A@src + b
-    # A and b unknown, A \in R^3x3 and b \in R^3
-
-    def __init__(self, bias="1d"):
-        super().__init__()
-        self.mat = nn.Linear(3, 3, bias=False)
-        if bias == "1d":
-            self.bias = nn.parameter.Parameter(torch.tensor(0.0))
-            print("Applying 1d bias, model is: A @ (source + bias) = target")
-        elif bias == "3d":
-            self.bias = nn.parameter.Parameter(
-                torch.tensor(
-                    [
-                        0.0,
-                        0.0,
-                        0.0,
-                    ]
-                )
-            )
-            print("Applying 3d bias, model is: A @ (source + bias) = target")
-        elif bias == None:
-            self.bias = torch.tensor(0.0)
-            print("Applying no bias, model is: A @ (source) = target")
-        else:
-            assert False, f"Bias type {bias} not supported."
-        self.init_weights()
-
-    def init_weights(self):
-        self.mat.weight.data = torch.eye(3)
-
-    def forward(self, x):
-        return self.mat(x + self.bias)
-
-    def print_weights(self):
-        print("Pre-bias: ", self.bias.data.detach().cpu().numpy())
-        print("matrix: ", self.mat.weight.detach().cpu().numpy())
+class Bias(str, Enum):
+    BIAS_1D = "1d"
+    BIAS_3D = "3d"
+    BIAS_NONE = "none"
 
 
 def fit_colors_ls(input_rgb, output_rgb, args):
@@ -117,61 +83,97 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
     return mat2.T, np.linalg.pinv(mat2.T), lambda x: x @ mat2
 
 
-def fit_colors_gd(input_rgb, output_rgb, args):
-    if torch.cuda.is_available():
-        device = torch.device("cuda:0")
-    else:
-        device = torch.device("cpu")
+class log_mat_model:
+    optimize_vec: np.ndarray
+    args: Namespace
 
-    ds = TensorDataset(
-        torch.tensor(flatten(input_rgb), device=device, dtype=torch.float32),
-        torch.tensor(flatten(output_rgb), device=device, dtype=torch.float32),
+    def __init__(self, optimize_vec, args):
+        assert optimize_vec is not None or args is not None
+        self.optimize_vec = optimize_vec
+        assert self.optimize_vec.shape == (log_mat_model.get_num_args(args),)
+        self.args = args
+
+    @staticmethod
+    def get_num_args(args) -> int:
+        num_args = 0
+        if args.enforce_whitepoint:
+            # 3x3 matrix, but rows sum to 1
+            num_args = 6
+        else:
+            # 3x3 matrix
+            num_args = 9
+        if args.bias == Bias.BIAS_1D.value:
+            num_args += 1
+        elif args.bias == Bias.BIAS_3D.value:
+            num_args += 3
+        elif args.bias == Bias.BIAS_NONE.value:
+            num_args += 0
+        return num_args
+
+    def get_model(self):
+        runner = 0
+        if args.enforce_whitepoint:
+            mat_vec = self.optimize_vec[runner : runner + 6]
+            runner += 6
+            mat = np.array(
+                [
+                    [1.0 - mat_vec[0] - mat_vec[1], mat_vec[0], mat_vec[1]],
+                    [mat_vec[2], 1.0 - mat_vec[2] - mat_vec[3], mat_vec[3]],
+                    [mat_vec[4], mat_vec[5], 1.0 - mat_vec[4] - mat_vec[5]],
+                ]
+            )
+        else:
+            mat = np.array(self.optimize_vec[runner : runner + 9]).reshape((3, 3))
+            runner += 9
+        bias_shape = (1, 3)
+        if args.bias == Bias.BIAS_1D.value:
+            bias_vec = np.full(bias_shape, self.optimize_vec[runner])
+            runner += 1
+        elif args.bias == Bias.BIAS_3D.value:
+            bias_vec = np.array(self.optimize_vec[runner : runner + 3]).reshape(
+                bias_shape
+            )
+            runner += 3
+        elif args.bias == Bias.BIAS_NONE.value:
+            bias_vec = np.zeros(bias_shape)
+            runner += 0
+        return mat, bias_vec
+
+    def forward(self, input_rgb: np.ndarray):
+        """
+        input_rgb of shape (n, 3), returns colors of shape (n, 3)
+        """
+        mat, bias = self.get_model()
+        return input_rgb @ mat.T + bias
+
+    def loss(self, input_rgb, output_rgb):
+        pixel_loss = np.log2(self.forward(input_rgb)) - np.log2(output_rgb)
+        # replace nans and -infs with 0
+        mask = np.isinf(pixel_loss) | np.isnan(pixel_loss)
+        pixel_loss[mask] = 0.0
+        return np.mean(pixel_loss**2)
+
+
+def fit_colors_log_mat(input_rgb, output_rgb, args):
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb)
+
+    optimize_vec = np.zeros((log_mat_model.get_num_args(args),))
+    if not args.enforce_whitepoint:
+        optimize_vec[:9] = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+
+    def optim_func(x, input_rgb, output_rgb, args):
+        model = log_mat_model(x, args)
+        return model.loss(input_rgb, output_rgb)
+
+    res: OptimizeResult = minimize(
+        optim_func, optimize_vec, (input_rgb_flat, output_rgb_flat, args), options={'disp': True}
     )
 
-    dl = DataLoader(ds, batch_size=min(100, len(ds)))
-
-    model = glass(bias=args.bias).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
-
-    def relu_log(x: torch.Tensor) -> torch.Tensor:
-        # Log x, but transition to y = x - 1 at x <= 1
-        mask = x > 1
-        x[mask] = torch.log(x[mask])
-        x[~mask] -= 1
-        return x
-
-    epochs = int(max(1, 200000 / len(ds)))
-    loss_fn = lambda y, y_pred: torch.mean(
-        (relu_log(1 + y_pred) - relu_log(1 + y)) ** 2
-    )
-
-    with tqdm(total=epochs) as pbar:
-        for e in range(epochs):
-            for x, y in dl:
-                x = x.to(device)
-                y = y.to(device)
-                optimizer.zero_grad()
-                output = model(x)
-                loss = loss_fn(output, y)
-                loss.backward()
-                optimizer.step()
-
-                err = torch.mean(torch.abs(output - y)).detach().cpu().numpy()
-                pbar.set_postfix(error=err)
-            pbar.update(1)
-
-    model.eval()
-    return (
-        (
-            model.mat.weight.data.detach().cpu().numpy(),
-            model.bias.detach().cpu().numpy(),
-        ),
-        np.linalg.pinv(model.mat.weight.data.detach().cpu().numpy()),
-        lambda x: model(torch.tensor(x, device=device, dtype=torch.float32))
-        .detach()
-        .cpu()
-        .numpy(),
-    )
+    optimized_vec = res.x
+    model = log_mat_model(optimized_vec, args)
+    parameters = model.get_model()
+    return parameters, np.linalg.pinv(parameters[0]), lambda x: model.forward(x)
 
 
 def plot_samples(samples, labels):
@@ -213,14 +215,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--bias",
         type=str,
-        default=None,
-        help="Optionally set to {1d, 3d} if you'd like to add a bias term, otherwise assumes bias of 0",
+        default="none",
+        help="Optionally set to {1d, 3d} if you'd like to add a bias term, otherwise assumes bias of `none`",
     )
     parser.add_argument(
         "--method",
-        type=str,
-        default=None,
-        help="Specify the method to match the two sets of colors. Options are: {gd, ls, wp}, ls is default",
+        default="lm",
+        const="lm",
+        nargs="?",
+        choices=["ls", "wp", "lm"],
+        help="Specify the method to match the two sets of colors. Default is: %(default)s",
     )
     parser.add_argument(
         "--enforce-whitepoint",
@@ -240,12 +244,18 @@ if __name__ == "__main__":
         default=False,
         help="Just do pixel per pixel match.",
     )
+    parser.add_argument(
+        "--no-ui",
+        action="store_true",
+        default=False,
+        help="Skip showing you the images.",
+    )
     args = parser.parse_args()
 
     # Want to find transformation that converts src to ref.
     ref = input("target image file path: ") if args.target is None else args.target
     src = input("source image file path: ") if args.source is None else args.source
-    method = input("method {gd, ls, wp}: ") if args.method is None else args.method
+    method = input("method {ls, wp}: ") if args.method is None else args.method
 
     ref_img = open_image(ref)
     src_img = open_image(src)
@@ -271,10 +281,10 @@ if __name__ == "__main__":
     ]
     if method == "ls":
         fit_colors = fit_colors_ls
-    elif method == "gd":
-        fit_colors = fit_colors_gd
     elif method == "wp":
         fit_colors = fit_colors_wppls
+    elif method == "lm":
+        fit_colors = fit_colors_log_mat
 
     parameters, inv_parameters, model_func = fit_colors(
         scaled_src_samples, ref_samples, args
@@ -293,32 +303,33 @@ if __name__ == "__main__":
     print("Inverse: ", repr(inv_parameters))
 
     src_img_shape = src_img.shape
-    if args.no_chart is False:
-        draw_samples(
-            src_img * premultiply_amt,
-            RGBChart(scaled_src_samples),
-            RGBChart(ref_samples),
-            src_positions,
-            title="Source Samples",
-        )
-        draw_samples(
-            ref_img,
-            RGBChart(scaled_src_samples),
-            RGBChart(ref_samples),
-            ref_positions,
-            title="Target Samples",
-        )
-        draw_samples(
-            model_func(flatten(src_img) * premultiply_amt).reshape(src_img_shape),
-            RGBChart(estimated_ref_samples),
-            RGBChart(ref_samples),
-            src_positions,
-            title="Corrected source samples",
-        )
-    else:
-        show_image(src_img ** (1.0 / 2.4), "Source")
-        show_image(ref_img ** (1.0 / 2.4), "Reference")
-        show_image(
-            model_func(flatten(src_img)).reshape(src_img_shape) ** (1.0 / 2.4),
-            "Converted Source",
-        )
+    if not args.no_ui:
+        if not args.no_chart:
+            draw_samples(
+                src_img * premultiply_amt,
+                RGBChart(scaled_src_samples),
+                RGBChart(ref_samples),
+                src_positions,
+                title="Source Samples",
+            )
+            draw_samples(
+                ref_img,
+                RGBChart(scaled_src_samples),
+                RGBChart(ref_samples),
+                ref_positions,
+                title="Target Samples",
+            )
+            draw_samples(
+                model_func(flatten(src_img) * premultiply_amt).reshape(src_img_shape),
+                RGBChart(estimated_ref_samples),
+                RGBChart(ref_samples),
+                src_positions,
+                title="Corrected source samples",
+            )
+        else:
+            show_image(src_img ** (1.0 / 2.4), "Source")
+            show_image(ref_img ** (1.0 / 2.4), "Reference")
+            show_image(
+                model_func(flatten(src_img)).reshape(src_img_shape) ** (1.0 / 2.4),
+                "Converted Source",
+            )
