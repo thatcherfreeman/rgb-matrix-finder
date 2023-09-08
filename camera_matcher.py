@@ -171,6 +171,7 @@ def fit_colors_log_mat(input_rgb, output_rgb, args):
     )
 
     optimized_vec = res.x
+    print("Model: bias + (mat @ img)")
     model = log_mat_model(optimized_vec, args)
     parameters = model.get_model()
     return parameters, np.linalg.pinv(parameters[0]), lambda x: model.forward(x)
