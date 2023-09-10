@@ -167,7 +167,10 @@ def fit_colors_log_mat(input_rgb, output_rgb, args):
         return model.loss(input_rgb, output_rgb)
 
     res: OptimizeResult = minimize(
-        optim_func, optimize_vec, (input_rgb_flat, output_rgb_flat, args), options={'disp': True}
+        optim_func,
+        optimize_vec,
+        (input_rgb_flat, output_rgb_flat, args),
+        options={"disp": True},
     )
 
     optimized_vec = res.x
@@ -240,6 +243,11 @@ if __name__ == "__main__":
         help="Set this flag to search for a 6x4 chart instead of a 4x6 chart.",
     )
     parser.add_argument(
+        "--chart-layout",
+        type=str,
+        help="Specify two integers separated by a comma to indicate (num_patch_rows) x (num_patch_cols)",
+    )
+    parser.add_argument(
         "--no-chart",
         action="store_true",
         default=False,
@@ -252,6 +260,7 @@ if __name__ == "__main__":
         help="Skip showing you the images.",
     )
     args = parser.parse_args()
+    print(args)
 
     # Want to find transformation that converts src to ref.
     ref = input("target image file path: ") if args.target is None else args.target
@@ -262,6 +271,11 @@ if __name__ == "__main__":
     src_img = open_image(src)
 
     chart_shape = (6, 4) if args.tall_chart else (4, 6)
+    if args.chart_layout is not None:
+        chart_shape = tuple([int(x) for x in args.chart_layout.split(",")])
+        assert len(chart_shape) == 2 and all(
+            [x > 0 for x in chart_shape]
+        ), f"Invalid chart_shape: {chart_shape}"
     if args.no_chart:
         ref_samples = ref_img
         src_samples = src_img
