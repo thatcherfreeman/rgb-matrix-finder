@@ -1,4 +1,5 @@
 from enum import Enum
+import itertools
 import numpy as np
 import matplotlib.pyplot as plt  # type:ignore
 from scipy.optimize import minimize, OptimizeResult  # type:ignore
@@ -81,6 +82,54 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
 
     mat2 = NT @ mat @ np.linalg.pinv(MT)
     return mat2.T, np.linalg.pinv(mat2.T), lambda x: x @ mat2
+
+
+def fit_colors_rp(input_rgb, output_rgb, args):
+    """Root polynomial method for color matching"""
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb)
+    degree = args.degree
+
+    def set_degree(input_rgb, degree):
+        # input_rgb of shape (N, 3)
+        result = input_rgb.copy()
+        example_rgb = np.array([2.0, 3.0, 5.0])  # three relatively prime numbers
+        seen_examples = [2.0, 3.0, 5.0]
+        rgb_idxs = [0, 1, 2]
+        accepted_combos = [[0], [1], [2]]
+        for d in range(2, degree + 1):
+            # identify all 3*d combinations of d elements
+            all_combos = [
+                list(x)
+                for x in list(itertools.combinations_with_replacement(rgb_idxs, d))
+            ]
+            for combo in all_combos:
+                # combo is d-tuple of indexes
+                curr_example = np.prod(example_rgb[combo]) ** (1.0 / d)
+                if not any([abs(curr_example - x) < 0.0001 for x in seen_examples]):
+                    seen_examples.append(curr_example)
+                    result = np.concatenate(
+                        [
+                            result,
+                            np.prod(input_rgb[:, combo], axis=1, keepdims=True)
+                            ** (1.0 / d),
+                        ],
+                        axis=1,
+                    )
+                    accepted_combos.append(combo)
+        return result, accepted_combos
+
+    expanded_input_rgb_flat, combos = set_degree(input_rgb_flat, degree)
+    col_names = ["r", "g", "b"]
+    print(
+        "Columns: ",
+        [
+            f'({"*".join([col_names[x] for x in combo])})^(1/{len(combo)})'
+            for combo in combos
+        ],
+    )
+    mat = np.linalg.lstsq(expanded_input_rgb_flat, output_rgb_flat)[0].T
+    return mat, np.linalg.pinv(mat), lambda x: set_degree(x, degree)[0] @ mat.T
 
 
 class log_mat_model:
@@ -227,8 +276,14 @@ if __name__ == "__main__":
         default="lm",
         const="lm",
         nargs="?",
-        choices=["ls", "wp", "lm"],
+        choices=["ls", "wp", "lm", "rp"],
         help="Specify the method to match the two sets of colors. Default is: %(default)s",
+    )
+    parser.add_argument(
+        "--degree",
+        type=int,
+        default=2,
+        help="Degree of root polynomial method",
     )
     parser.add_argument(
         "--enforce-whitepoint",
@@ -300,6 +355,8 @@ if __name__ == "__main__":
         fit_colors = fit_colors_wppls
     elif method == "lm":
         fit_colors = fit_colors_log_mat
+    elif method == "rp":
+        fit_colors = fit_colors_rp
 
     parameters, inv_parameters, model_func = fit_colors(
         scaled_src_samples, ref_samples, args
