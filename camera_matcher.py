@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt  # type:ignore
 from scipy.optimize import minimize, OptimizeResult  # type:ignore
 from argparse import ArgumentParser, Namespace
-from typing import Callable, Tuple, Any
+from typing import Callable, Tuple, Any, List, Optional
 
 from src.images import (
     flatten,
@@ -84,15 +84,37 @@ def fit_colors_wppls(input_rgb, output_rgb, args):
     return mat2.T, np.linalg.pinv(mat2.T), lambda x: x @ mat2
 
 
-def fit_colors_rp(input_rgb, output_rgb, args):
-    """Root polynomial method for color matching"""
-    input_rgb_flat = flatten(input_rgb)
-    output_rgb_flat = flatten(output_rgb)
-    degree = args.degree
+class root_polynomial_model:
+    optimize_vec: np.ndarray
+    args: Namespace
+    cols: List[List[int]]
 
-    def set_degree(input_rgb, degree):
+    def __init__(self, optimize_vec: np.ndarray, args: Namespace):
+        assert optimize_vec is not None or args is not None
+        self.optimize_vec = optimize_vec
+        self.cols = root_polynomial_model.set_degree(args.degree)
+        assert self.optimize_vec.shape == (root_polynomial_model.get_num_args(args),)
+        self.args = args
+
+
+    @staticmethod
+    def augment(input_rgb: np.ndarray, combos: List[List[int]]) -> np.ndarray:
         # input_rgb of shape (N, 3)
         result = input_rgb.copy()
+        for combo in combos[3:]:
+            curr_degree = len(combo)
+            result = np.concatenate(
+                [
+                    result,
+                    np.prod(input_rgb[:, combo], axis=1, keepdims=True)
+                    ** (1.0 / curr_degree),
+                ],
+                axis=1,
+            )
+        return result
+
+    @staticmethod
+    def set_degree(degree: int) -> List[List[int]]:
         example_rgb = np.array([2.0, 3.0, 5.0])  # three relatively prime numbers
         seen_examples = [2.0, 3.0, 5.0]
         rgb_idxs = [0, 1, 2]
@@ -108,28 +130,63 @@ def fit_colors_rp(input_rgb, output_rgb, args):
                 curr_example = np.prod(example_rgb[combo]) ** (1.0 / d)
                 if not any([abs(curr_example - x) < 0.0001 for x in seen_examples]):
                     seen_examples.append(curr_example)
-                    result = np.concatenate(
-                        [
-                            result,
-                            np.prod(input_rgb[:, combo], axis=1, keepdims=True)
-                            ** (1.0 / d),
-                        ],
-                        axis=1,
-                    )
                     accepted_combos.append(combo)
-        return result, accepted_combos
+        return accepted_combos
 
-    expanded_input_rgb_flat, combos = set_degree(input_rgb_flat, degree)
-    col_names = ["r", "g", "b"]
+    @staticmethod
+    def get_num_args(args: Namespace) -> int:
+        cols = root_polynomial_model.set_degree(args.degree)
+        return len(cols) * 3
+
+    def get_model(self):
+        mat = self.optimize_vec.reshape((3, len(self.cols)))
+        return mat
+
+    def forward(self, input_rgb: np.ndarray):
+        """
+        input_rgb of shape (n, 3), returns colors of shape (n, 3)
+        """
+        mat = self.get_model()
+        augmented_input_rgb = root_polynomial_model.augment(input_rgb, self.cols)
+        return augmented_input_rgb @ mat.T
+
+    def loss(self, input_rgb, output_rgb):
+        estimated_output_rgb = self.forward(input_rgb)
+        error = np.mean((estimated_output_rgb - output_rgb)**2)
+        reg = np.mean((self.optimize_vec - np.eye(3, len(self.cols)).reshape(self.optimize_vec.shape))**2) # ideally rows would have net sum of 3
+        return error + 0.01 * reg
+
+def fit_colors_rp(input_rgb, output_rgb, args):
+    """Root polynomial method for color matching"""
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb)
+
+    optimize_vec = np.eye(3, len(root_polynomial_model.set_degree(args.degree))).reshape(root_polynomial_model.get_num_args(args))
+
+    def optim_func(x, input_rgb, output_rgb, args):
+        model = root_polynomial_model(x, args)
+        return model.loss(input_rgb, output_rgb)
+
+    res: OptimizeResult = minimize(
+        optim_func,
+        optimize_vec,
+        (input_rgb_flat, output_rgb_flat, args),
+        options={"disp": True},
+    )
+    optimized_vec = res.x
+
+    col_names = ['r', 'g', 'b']
+    model = root_polynomial_model(optimized_vec, args)
     print(
         "Columns: ",
         [
             f'({"*".join([col_names[x] for x in combo])})^(1/{len(combo)})'
-            for combo in combos
+            for combo in model.cols
         ],
     )
-    mat = np.linalg.lstsq(expanded_input_rgb_flat, output_rgb_flat)[0].T
-    return mat, np.linalg.pinv(mat), lambda x: set_degree(x, degree)[0] @ mat.T
+    print("Model: mat @ columns")
+    parameters = model.get_model()
+    return parameters, np.linalg.pinv(parameters), lambda x: model.forward(x)
 
 
 class log_mat_model:
@@ -325,10 +382,12 @@ if __name__ == "__main__":
     ref_img = open_image(ref)
     src_img = open_image(src)
 
-    chart_shape = (6, 4) if args.tall_chart else (4, 6)
+    chart_shape: Tuple[int, int] = (6, 4) if args.tall_chart else (4, 6)
     if args.chart_layout is not None:
-        chart_shape = tuple([int(x) for x in args.chart_layout.split(",")])
-        assert len(chart_shape) == 2 and all(
+        dimensions = [int(x) for x in args.chart_layout.split(",")]
+        assert len(dimensions) == 2
+        chart_shape = (dimensions[0], dimensions[1])
+        assert all(
             [x > 0 for x in chart_shape]
         ), f"Invalid chart_shape: {chart_shape}"
     if args.no_chart:
