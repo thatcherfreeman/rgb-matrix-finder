@@ -93,9 +93,16 @@ def main() -> None:
     ref_charts = []
     ref_patches = []
     for i, fn in enumerate(reference_fns):
-        ref_chart, patches = reference_charts.load_reference_chart(
-            reference_charts.read_text_file(fn)
-        )
+        if fn.endswith(".txt"):
+            ref_chart, patches = reference_charts.load_reference_chart_txt(
+                reference_charts.read_file(fn)
+            )
+        elif fn.endswith(".csv"):
+            ref_chart, patches = reference_charts.load_reference_chart_csv(
+                reference_charts.read_file(fn)
+            )
+        else:
+            raise ValueError(f"Unknown file type: {fn}")
         if args.tall_chart:
             patches = max(patches), min(patches)
         else:

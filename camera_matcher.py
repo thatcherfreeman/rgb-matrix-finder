@@ -96,7 +96,6 @@ class root_polynomial_model:
         assert self.optimize_vec.shape == (root_polynomial_model.get_num_args(args),)
         self.args = args
 
-
     @staticmethod
     def augment(input_rgb: np.ndarray, combos: List[List[int]]) -> np.ndarray:
         # input_rgb of shape (N, 3)
@@ -152,16 +151,25 @@ class root_polynomial_model:
 
     def loss(self, input_rgb, output_rgb):
         estimated_output_rgb = self.forward(input_rgb)
-        error = np.mean((estimated_output_rgb - output_rgb)**2)
-        reg = np.mean((self.optimize_vec - np.eye(3, len(self.cols)).reshape(self.optimize_vec.shape))**2) # ideally rows would have net sum of 3
+        error = np.mean((estimated_output_rgb - output_rgb) ** 2)
+        reg = np.mean(
+            (
+                self.optimize_vec
+                - np.eye(3, len(self.cols)).reshape(self.optimize_vec.shape)
+            )
+            ** 2
+        )  # ideally rows would have net sum of 3
         return error + 0.01 * reg
+
 
 def fit_colors_rp(input_rgb, output_rgb, args):
     """Root polynomial method for color matching"""
     input_rgb_flat = flatten(input_rgb)
     output_rgb_flat = flatten(output_rgb)
 
-    optimize_vec = np.eye(3, len(root_polynomial_model.set_degree(args.degree))).reshape(root_polynomial_model.get_num_args(args))
+    optimize_vec = np.eye(
+        3, len(root_polynomial_model.set_degree(args.degree))
+    ).reshape(root_polynomial_model.get_num_args(args))
 
     def optim_func(x, input_rgb, output_rgb, args):
         model = root_polynomial_model(x, args)
@@ -175,7 +183,7 @@ def fit_colors_rp(input_rgb, output_rgb, args):
     )
     optimized_vec = res.x
 
-    col_names = ['r', 'g', 'b']
+    col_names = ["r", "g", "b"]
     model = root_polynomial_model(optimized_vec, args)
     print(
         "Columns: ",
@@ -387,9 +395,7 @@ if __name__ == "__main__":
         dimensions = [int(x) for x in args.chart_layout.split(",")]
         assert len(dimensions) == 2
         chart_shape = (dimensions[0], dimensions[1])
-        assert all(
-            [x > 0 for x in chart_shape]
-        ), f"Invalid chart_shape: {chart_shape}"
+        assert all([x > 0 for x in chart_shape]), f"Invalid chart_shape: {chart_shape}"
     if args.no_chart:
         ref_samples = ref_img
         src_samples = src_img

@@ -8,8 +8,8 @@ import numpy as np
 src_gamut = GAMUT_REC709
 target_gamut = GAMUT_DWG
 ref_chart: ReferenceChart
-ref_chart, _ = load_reference_chart(
-    read_text_file(os.path.join("reference_charts", "ColorChecker24_After_Nov2014.txt"))
+ref_chart, _ = load_reference_chart_txt(
+    read_file(os.path.join("reference_charts", "ColorChecker24_After_Nov2014.txt"))
 )
 src_chart: RGBChart = (
     ref_chart.convert_to_xyz(ref_chart.reference_white)

@@ -3,12 +3,60 @@ from typing import List, Tuple, Optional
 import src.color_conversions as color_conversions
 
 
-def read_text_file(fn: str) -> List[str]:
+def read_file(fn: str) -> List[str]:
     with open(fn, "r", encoding="UTF-8") as f:
         return f.readlines()
 
 
-def load_reference_chart(
+def load_reference_chart_csv(
+    lines: List[str],
+) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
+    lines = [line.strip() for line in lines if len(line.strip()) > 0]
+    cols = {col_name: idx for idx, col_name in enumerate(lines[0].split(","))}
+    assert all(
+        [
+            expected_col in cols
+            for expected_col in ["patch_number", "lab_l", "lab_a", "lab_b", "white"]
+        ]
+    )
+    patches: List[List[float]] = []
+    reference_white: color_conversions.XYZChart = color_conversions.STD_D65  # default
+    max_row = 0
+    for line in lines[1:]:
+        parts: list[str] = line.split(",")
+        if len(parts[cols["white"]].strip()) > 0:
+            white_str = parts[cols["white"]]
+            if white_str == "D65":
+                reference_white = color_conversions.STD_D65
+            else:
+                raise ValueError(f"Unsupported white point: {white_str}")
+
+        lab = [
+            float(parts[cols["lab_l"]]),
+            float(parts[cols["lab_a"]]),
+            float(parts[cols["lab_b"]]),
+        ]
+        patch_idx = parts[cols["patch_number"]]
+        patch_idx_matches = re.match(r"([A-Z]*)(\d*)", patch_idx)
+        if patch_idx_matches is not None:
+            patch_idx_groups = patch_idx_matches.groups()
+            col = patch_idx_groups[0]
+            row = int(patch_idx_groups[1])
+            max_row = max(max_row, row)
+            patches.append(lab)
+
+    num_chips = len(patches)
+    num_rows = max_row
+    num_cols = num_chips // max_row
+    estimated_dimensions = (num_rows, num_cols)
+
+    reference_chart = color_conversions.ReferenceChart(
+        colors=patches, reference_white=reference_white
+    )
+    return reference_chart, estimated_dimensions
+
+
+def load_reference_chart_txt(
     lines: List[str],
 ) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
     # Parses the X-Rite color chart official specification
@@ -16,6 +64,7 @@ def load_reference_chart(
     patches: List[List[float]] = []
     verified_lab = False
     highest_patch_coord = ("A", 0)
+    lines = [line for line in lines if len(line.strip()) > 0]
     for l in lines:
         matches = re.match(r"\"MeasurementCondition=(\S*)", l)
         if matches is not None:

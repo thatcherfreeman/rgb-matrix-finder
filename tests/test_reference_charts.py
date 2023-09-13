@@ -83,10 +83,38 @@ F4	20.461	-0.079	-0.973
 END_DATA
 """
 
+file_contents3 = """
+patch_number,lab_l,lab_a,lab_b,weight,white
+A1,76.87,-13.96,53.88,1,D65
+A2,29.44,5.32,8.45,1,
+A3,25.01,0.27,0.09,1,
+A4,22.46,0.06,-0.51,0,
+B1,51.11,40.69,19.09,1,
+B2,62.54,9.4,17.26,1,
+B3,30.16,-0.09,-0.71,1,
+B4,19.91,-0.27,-0.48,0,
+C1,54.55,46.69,-30.17,1,
+C2,44.3,12.03,19.37,1,
+C3,45.49,0.21,-0.11,1,
+C4,5.47,0.56,-0.34,0,
+D1,42.15,22.2,-46.42,1,
+D2,56.2,11.49,20.51,1,
+D3,55.63,-0.3,0.09,1,
+D4,89.7,-0.31,-0.03,0,
+E1,72.35,-29.3,-9.7,1,
+E2,68.31,8.56,14.64,1,
+E3,69.79,0.03,-0.58,1,
+E4,93.39,-0.43,0.2,0,
+F1,67.95,-45.59,38.03,1,
+F2,71.66,7.99,13.28,1,
+F3,84.22,-0.12,-0.53,1,
+F4,95.88,-0.62,2.06,0,
+"""
+
 
 def test_load_reference_chart() -> None:
     lines = file_contents.split("\n")
-    reference_chart, patches = reference_charts.load_reference_chart(lines)
+    reference_chart, patches = reference_charts.load_reference_chart_txt(lines)
     assert patches == (4, 6)
     assert reference_chart.colors.shape == (24, 3)
     assert (
@@ -105,7 +133,7 @@ def test_load_reference_chart() -> None:
 
 def test_load_reference_chart2() -> None:
     lines = file_contents2.split("\n")
-    reference_chart, patches = reference_charts.load_reference_chart(lines)
+    reference_chart, patches = reference_charts.load_reference_chart_txt(lines)
     assert patches == (4, 6)
     assert reference_chart.colors.shape == (24, 3)
     assert (
@@ -124,7 +152,7 @@ def test_load_reference_chart2() -> None:
 
 def test_load_reference_chart_xyz() -> None:
     lines = file_contents.split("\n")
-    reference_chart, patches = reference_charts.load_reference_chart(lines)
+    reference_chart, patches = reference_charts.load_reference_chart_txt(lines)
     assert (
         np.sum(np.abs(reference_chart.colors[0] - np.array([[37.54, 14.37, 14.92]])))
         < 0.0001
@@ -151,3 +179,12 @@ def test_load_reference_chart_xyz() -> None:
         )
         < 0.0001
     )
+
+
+def test_load_reference_chart_csv() -> None:
+    lines = file_contents3.split("\n")
+    reference_chart, patches = reference_charts.load_reference_chart_csv(lines)
+
+    assert patches == (4, 6)
+    assert reference_chart.reference_white == color_conversions.STD_D65
+    assert np.sum(reference_chart.colors[6] - np.array([30.16, -0.09, -0.71])) < 0.0001
