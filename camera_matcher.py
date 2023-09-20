@@ -14,7 +14,6 @@ from src.images import (
     show_image,
 )
 from src.color_conversions import RGBChart
-import src.color_conversions as color_conversions
 
 # Intended to help you match one Scene Linear image of a color chart
 # from one camera to another.
