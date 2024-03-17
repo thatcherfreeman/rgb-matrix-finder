@@ -378,6 +378,12 @@ if __name__ == "__main__":
         default=False,
         help="Skip showing you the images.",
     )
+    parser.add_argument(
+        "--normalize-samples",
+        action="store_true",
+        default=False,
+        help="Normalize inputs by sum(rgb) before fitting.",
+    )
     args = parser.parse_args()
     print(args)
 
@@ -395,6 +401,7 @@ if __name__ == "__main__":
         assert len(dimensions) == 2
         chart_shape = (dimensions[0], dimensions[1])
         assert all([x > 0 for x in chart_shape]), f"Invalid chart_shape: {chart_shape}"
+
     if args.no_chart:
         ref_samples = ref_img
         src_samples = src_img
@@ -422,9 +429,17 @@ if __name__ == "__main__":
     elif method == "rp":
         fit_colors = fit_colors_rp
 
-    parameters, inv_parameters, model_func = fit_colors(
-        scaled_src_samples, ref_samples, args
-    )
+    if args.normalize_samples:
+        src_normalization_factors = np.sum(scaled_src_samples, axis=-1, keepdims=True)
+        ref_normalization_factors = np.sum(ref_samples, axis=-1, keepdims=True)
+
+        parameters, inv_parameters, model_func = fit_colors(
+            scaled_src_samples/src_normalization_factors, ref_samples/ref_normalization_factors, args
+        )
+    else:
+        parameters, inv_parameters, model_func = fit_colors(
+            scaled_src_samples, ref_samples, args
+        )
 
     estimated_ref_samples = model_func(flatten(scaled_src_samples)).reshape(
         scaled_src_samples.shape
