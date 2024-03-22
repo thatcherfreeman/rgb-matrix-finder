@@ -318,6 +318,12 @@ def plot_samples(samples, labels):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
+        "--export",
+        action="store_true",
+        default=False,
+        help="Export results in txt file.",
+    )
+    parser.add_argument(
         "--source",
         type=str,
         default=None,
@@ -437,6 +443,12 @@ if __name__ == "__main__":
     print("Final MSE error: ", np.mean((estimated_ref_samples - ref_samples) ** 2))
     print("Forward matrix: ", repr(parameters))
     print("Inverse: ", repr(inv_parameters))
+
+    if args.export:
+        file1 = open('Export.txt', 'a')
+        L = [args.source, "\n", args.target, "\nForward matrix: \n", repr(parameters), "\nInverse matrix: \n", repr(inv_parameters), "\n\n"]
+        file1.writelines(L)
+        file1.close()
 
     src_img_shape = src_img.shape
     if not args.no_ui:
