@@ -196,6 +196,120 @@ def fit_colors_rp(input_rgb, output_rgb, args):
     return parameters, np.linalg.pinv(parameters), lambda x: model.forward(x)
 
 
+def linear_to_di(x: np.ndarray):
+    a = 0.0075
+    b = 7.0
+    c = 0.07329248
+    m = 10.44426855
+    lin_cut = 0.00262409
+    gt_cut_mask = x > lin_cut
+
+    out = np.zeros_like(x)
+    out[gt_cut_mask] = (np.log2(x[gt_cut_mask] + a) + b) * c
+    out[~gt_cut_mask] = x[~gt_cut_mask] * m
+    return out
+
+
+class di_mat_model:
+    '''
+    Applies matrix in linear and then converts to Davinci Intermediate to compute loss
+    '''
+    optimize_vec: np.ndarray
+    args: Namespace
+
+    def __init__(self, optimize_vec, args):
+        assert optimize_vec is not None or args is not None
+        self.optimize_vec = optimize_vec
+        assert self.optimize_vec.shape == (log_mat_model.get_num_args(args),)
+        self.args = args
+
+    @staticmethod
+    def get_num_args(args) -> int:
+        num_args = 0
+        if args.enforce_whitepoint:
+            # 3x3 matrix, but rows sum to 1
+            num_args = 6
+        else:
+            # 3x3 matrix
+            num_args = 9
+        if args.bias == Bias.BIAS_1D.value:
+            num_args += 1
+        elif args.bias == Bias.BIAS_3D.value:
+            num_args += 3
+        elif args.bias == Bias.BIAS_NONE.value:
+            num_args += 0
+        return num_args
+
+    def get_model(self):
+        runner = 0
+        if self.args.enforce_whitepoint:
+            mat_vec = self.optimize_vec[runner : runner + 6]
+            runner += 6
+            mat = np.array(
+                [
+                    [1.0 - mat_vec[0] - mat_vec[1], mat_vec[0], mat_vec[1]],
+                    [mat_vec[2], 1.0 - mat_vec[2] - mat_vec[3], mat_vec[3]],
+                    [mat_vec[4], mat_vec[5], 1.0 - mat_vec[4] - mat_vec[5]],
+                ]
+            )
+        else:
+            mat = np.array(self.optimize_vec[runner : runner + 9]).reshape((3, 3))
+            runner += 9
+        bias_shape = (1, 3)
+        if self.args.bias == Bias.BIAS_1D.value:
+            bias_vec = np.full(bias_shape, self.optimize_vec[runner])
+            runner += 1
+        elif self.args.bias == Bias.BIAS_3D.value:
+            bias_vec = np.array(self.optimize_vec[runner : runner + 3]).reshape(
+                bias_shape
+            )
+            runner += 3
+        elif self.args.bias == Bias.BIAS_NONE.value:
+            bias_vec = np.zeros(bias_shape)
+            runner += 0
+        return mat, bias_vec
+
+    def forward(self, input_rgb: np.ndarray):
+        """
+        input_rgb of shape (n, 3), returns colors of shape (n, 3)
+        """
+        mat, bias = self.get_model()
+        return input_rgb @ mat.T + bias
+
+    def loss(self, input_rgb, output_rgb):
+        pixel_loss = linear_to_di(self.forward(input_rgb)) - linear_to_di(output_rgb)
+        # replace nans and -infs with 0
+        mask = np.isinf(pixel_loss) | np.isnan(pixel_loss)
+        pixel_loss[mask] = 0.0
+        return np.mean(pixel_loss**2)
+
+
+def fit_colors_di_mat(input_rgb, output_rgb, args):
+    input_rgb_flat = flatten(input_rgb)
+    output_rgb_flat = flatten(output_rgb)
+
+    optimize_vec = np.zeros((di_mat_model.get_num_args(args),))
+    if not args.enforce_whitepoint:
+        optimize_vec[:9] = [1, 0, 0, 0, 1, 0, 0, 0, 1]
+
+    def optim_func(x, input_rgb, output_rgb, args):
+        model = di_mat_model(x, args)
+        return model.loss(input_rgb, output_rgb)
+
+    res: OptimizeResult = minimize(
+        optim_func,
+        optimize_vec,
+        (input_rgb_flat, output_rgb_flat, args),
+        options={"disp": True},
+    )
+
+    optimized_vec = res.x
+    print("Model: bias + (mat @ img)")
+    model = di_mat_model(optimized_vec, args)
+    parameters = model.get_model()
+    return parameters, np.linalg.pinv(parameters[0]), lambda x: model.forward(x)
+
+
 class log_mat_model:
     optimize_vec: np.ndarray
     args: Namespace
@@ -225,7 +339,7 @@ class log_mat_model:
 
     def get_model(self):
         runner = 0
-        if args.enforce_whitepoint:
+        if self.args.enforce_whitepoint:
             mat_vec = self.optimize_vec[runner : runner + 6]
             runner += 6
             mat = np.array(
@@ -239,15 +353,15 @@ class log_mat_model:
             mat = np.array(self.optimize_vec[runner : runner + 9]).reshape((3, 3))
             runner += 9
         bias_shape = (1, 3)
-        if args.bias == Bias.BIAS_1D.value:
+        if self.args.bias == Bias.BIAS_1D.value:
             bias_vec = np.full(bias_shape, self.optimize_vec[runner])
             runner += 1
-        elif args.bias == Bias.BIAS_3D.value:
+        elif self.args.bias == Bias.BIAS_3D.value:
             bias_vec = np.array(self.optimize_vec[runner : runner + 3]).reshape(
                 bias_shape
             )
             runner += 3
-        elif args.bias == Bias.BIAS_NONE.value:
+        elif self.args.bias == Bias.BIAS_NONE.value:
             bias_vec = np.zeros(bias_shape)
             runner += 0
         return mat, bias_vec
@@ -315,7 +429,7 @@ def plot_samples(samples, labels):
     plt.show()
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser()
     parser.add_argument(
         "--export",
@@ -346,7 +460,7 @@ if __name__ == "__main__":
         default="lm",
         const="lm",
         nargs="?",
-        choices=["ls", "wp", "lm", "rp"],
+        choices=["ls", "wp", "lm", "rp", "di"],
         help="Specify the method to match the two sets of colors. Default is: %(default)s",
     )
     parser.add_argument(
@@ -396,7 +510,7 @@ if __name__ == "__main__":
     # Want to find transformation that converts src to ref.
     ref = input("target image file path: ") if args.target is None else args.target
     src = input("source image file path: ") if args.source is None else args.source
-    method = input("method {ls, wp}: ") if args.method is None else args.method
+    method = input("method {ls,wp,lm,rp,di}: ") if args.method is None else args.method
 
     ref_img = open_image(ref)
     src_img = open_image(src)
@@ -422,6 +536,8 @@ if __name__ == "__main__":
         print(f"Scaling source samples by {premultiply_amt} before fitting.")
         scaled_src_samples = src_samples * premultiply_amt
 
+    print(f"Min: {np.min(ref_samples)}")
+
     fit_colors: Callable[
         [np.ndarray, np.ndarray, Namespace],
         Tuple[Any, Any, Callable[[np.ndarray], np.ndarray]],
@@ -434,6 +550,8 @@ if __name__ == "__main__":
         fit_colors = fit_colors_log_mat
     elif method == "rp":
         fit_colors = fit_colors_rp
+    elif method == "di":
+        fit_colors = fit_colors_di_mat
 
     if args.normalize_samples:
         src_normalization_factors = np.sum(scaled_src_samples, axis=-1, keepdims=True)
@@ -460,10 +578,9 @@ if __name__ == "__main__":
     print("Inverse: ", repr(inv_parameters))
 
     if args.export:
-        file1 = open('Export.txt', 'a')
-        L = [args.source, "\n", args.target, "\nForward matrix: \n", repr(parameters), "\nInverse matrix: \n", repr(inv_parameters), "\n\n"]
-        file1.writelines(L)
-        file1.close()
+        with open('Export.txt', 'a') as file1:
+            lines = [args.source, "\n", args.target, "\nForward matrix: \n", repr(parameters), "\nInverse matrix: \n", repr(inv_parameters), "\n\n"]
+            file1.writelines(lines)
 
     src_img_shape = src_img.shape
     if not args.no_ui:
@@ -496,3 +613,6 @@ if __name__ == "__main__":
                 model_func(flatten(src_img)).reshape(src_img_shape) ** (1.0 / 2.4),
                 "Converted Source",
             )
+
+if __name__ == "__main__":
+    main()
