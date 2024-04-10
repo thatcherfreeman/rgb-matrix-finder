@@ -457,8 +457,8 @@ def main():
     )
     parser.add_argument(
         "--method",
-        default="lm",
-        const="lm",
+        default="di",
+        const="di",
         nargs="?",
         choices=["ls", "wp", "lm", "rp", "di"],
         help="Specify the method to match the two sets of colors. Default is: %(default)s",
