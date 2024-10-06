@@ -41,12 +41,20 @@ class ColorMatrix:
     ) -> "ColorMatrix":
         assert input_white_point.colors.shape == (1, 3)
         assert output_white_point.colors.shape == (1, 3)
-        # CMCAT 2000 matrix.
+        # # CMCAT 2000 matrix.
+        # M: np.ndarray = np.array(
+        #     [
+        #         [0.7982, 0.3389, -0.1371],
+        #         [-0.5918, 1.5512, 0.0406],
+        #         [0.0008, 0.0239, 0.9753],
+        #     ]
+        # )
+        # CAT02 Matrix
         M: np.ndarray = np.array(
             [
-                [0.7982, 0.3389, -0.1371],
-                [-0.5918, 1.5512, 0.0406],
-                [0.0008, 0.0239, 0.9753],
+                [0.7328, 0.4296, -0.1624],
+                [-0.7036, 1.6975, 0.0061],
+                [0.003, 0.0136, 0.9834],
             ]
         )
         M_inv = np.linalg.pinv(M)

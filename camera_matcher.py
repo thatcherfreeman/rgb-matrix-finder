@@ -211,9 +211,10 @@ def linear_to_di(x: np.ndarray):
 
 
 class di_mat_model:
-    '''
+    """
     Applies matrix in linear and then converts to Davinci Intermediate to compute loss
-    '''
+    """
+
     optimize_vec: np.ndarray
     args: Namespace
 
@@ -558,7 +559,9 @@ def main():
         ref_normalization_factors = np.sum(ref_samples, axis=-1, keepdims=True)
 
         parameters, inv_parameters, model_func = fit_colors(
-            scaled_src_samples/src_normalization_factors, ref_samples/ref_normalization_factors, args
+            scaled_src_samples / src_normalization_factors,
+            ref_samples / ref_normalization_factors,
+            args,
         )
     else:
         parameters, inv_parameters, model_func = fit_colors(
@@ -578,8 +581,17 @@ def main():
     print("Inverse: ", repr(inv_parameters))
 
     if args.export:
-        with open('Export.txt', 'a') as file1:
-            lines = [args.source, "\n", args.target, "\nForward matrix: \n", repr(parameters), "\nInverse matrix: \n", repr(inv_parameters), "\n\n"]
+        with open("Export.txt", "a") as file1:
+            lines = [
+                args.source,
+                "\n",
+                args.target,
+                "\nForward matrix: \n",
+                repr(parameters),
+                "\nInverse matrix: \n",
+                repr(inv_parameters),
+                "\n\n",
+            ]
             file1.writelines(lines)
 
     src_img_shape = src_img.shape
@@ -613,6 +625,7 @@ def main():
                 model_func(flatten(src_img)).reshape(src_img_shape) ** (1.0 / 2.4),
                 "Converted Source",
             )
+
 
 if __name__ == "__main__":
     main()
