@@ -28,6 +28,10 @@ def load_reference_chart_csv(
             white_str = parts[cols["white"]]
             if white_str == "D65":
                 reference_white = color_conversions.STD_D65
+            elif white_str == "D50":
+                reference_white = color_conversions.STD_D50
+            elif white_str == "A":
+                reference_white = color_conversions.STD_A
             else:
                 raise ValueError(f"Unsupported white point: {white_str}")
 

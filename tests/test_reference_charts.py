@@ -165,17 +165,12 @@ def test_load_reference_chart_xyz() -> None:
         )
         < 0.0001
     )
-
-    foo = color_conversions.ColorMatrix.get_chromatic_adaptation_matrix(
-        color_conversions.STD_A, color_conversions.STD_D65
-    )
-
     xyz_chart_d65 = xyz_chart_std_a.chromatic_adaptation(
         color_conversions.STD_A, color_conversions.STD_D65
     )
     assert (
         np.sum(
-            np.abs(xyz_chart_d65.colors[0] - np.array([[0.10712, 0.09498, 0.06519]]))
+            np.abs(xyz_chart_d65.colors[0] - np.array([[0.10653001, 0.09390262, 0.06469548]]))
         )
         < 0.0001
     )

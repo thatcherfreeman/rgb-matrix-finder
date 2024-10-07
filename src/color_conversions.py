@@ -310,7 +310,9 @@ class XYYChart(Chart):
             * self.colors[:, 2]
             / self.colors[:, 1]
         )
-        xyz_colors[zeros] = 0
+        xyz_colors[zeros, 0] = self.colors[zeros, 0] * self.colors[zeros, 2]
+        xyz_colors[zeros, 1] = 0.0
+        xyz_colors[zeros, 2] = (1.0 - self.colors[zeros, 0]) * self.colors[zeros, 2]
 
         xyz = XYZChart(xyz_colors)
         return xyz
@@ -366,4 +368,10 @@ GAMUT_AWG4: Gamut = Gamut(
     green=XYYChart(np.array([[0.1424, 0.8576, 1.0]])),
     blue=XYYChart(np.array([[0.0991, -0.0308, 1.0]])),
     white=XYYChart(np.array([[0.3127, 0.3290, 1.0]])),
+)
+GAMUT_XYZ: Gamut = Gamut(
+    red=XYYChart(np.array([[1.0, 0.0, 1.0]])),
+    green=XYYChart(np.array([[0.0, 1.0, 1.0]])),
+    blue=XYYChart(np.array([[0.0, 0.0, 1.0]])),
+    white=XYYChart(np.array([[1.0 / 3.0, 1.0 / 3.0, 1.0]])),
 )

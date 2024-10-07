@@ -31,6 +31,16 @@ def test_xyychart() -> None:
     assert np.sum(np.abs(xyy2.colors - xyy.colors)) < 1e-10
     assert np.sum(np.abs(xyz.colors - np.array([[0.95016712, 1.0, 1.08842297]]))) < 1e-6
 
+    xyy = color_conversions.XYYChart([[1.0, 0.0, 1.0]])
+    xyz = xyy.convert_to_xyz()
+    assert np.sum(np.abs(xyz.colors - np.array([[1.0, 0.0, 0.0]]))) < 1e-6
+    xyy = color_conversions.XYYChart([[0.0, 1.0, 1.0]])
+    xyz = xyy.convert_to_xyz()
+    assert np.sum(np.abs(xyz.colors - np.array([[0.0, 1.0, 0.0]]))) < 1e-6
+    xyy = color_conversions.XYYChart([[0.0, 0.0, 1.0]])
+    xyz = xyy.convert_to_xyz()
+    assert np.sum(np.abs(xyz.colors - np.array([[0.0, 0.0, 1.0]]))) < 1e-6
+
 
 def test_labchart() -> None:
     lab1 = color_conversions.LABChart([[100.0, 0.0, 0.0]])

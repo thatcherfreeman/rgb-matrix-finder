@@ -7,17 +7,21 @@ from typing import Tuple, Optional, List
 
 class Parameters:
     _solve_matrix: bool
+    _matrix_preserve_white: bool
     matrix: color_conversions.ColorMatrix
     _solve_exposure: bool
     exposure: float
     _solve_white_balance: bool
     white_balance: color_conversions.ColorMatrix
+    _use_chromatic_adaptation: bool
 
     def __init__(
         self,
         matrix: Optional[color_conversions.ColorMatrix] = None,
         exposure: Optional[float] = None,
         white_balance: Optional[color_conversions.ColorMatrix] = None,
+        use_chromatic_adaptation: Optional[bool] = None,
+        matrix_preserve_white: Optional[bool] = None,
     ) -> None:
         """
         For each input, if None, then we will want to solve for this parameter.
@@ -52,15 +56,28 @@ class Parameters:
             self.white_balance = white_balance
             self._solve_white_balance = False
 
+        if use_chromatic_adaptation is None:
+            self._use_chromatic_adaptation = True
+        else:
+            self._use_chromatic_adaptation = use_chromatic_adaptation
+
+        if matrix_preserve_white is None:
+            self._matrix_preserve_white = True
+        else:
+            self._matrix_preserve_white = matrix_preserve_white
+
     def copy(self) -> "Parameters":
         out = Parameters(
             self.matrix.copy() if not self.solve_matrix else None,
             self.exposure if not self.solve_exposure else None,
             self.white_balance.copy() if not self.solve_white_balance else None,
+            self.use_chromatic_adaptation,
+            self.matrix_preserve_white,
         )
         assert out.solve_matrix == self.solve_matrix
         assert out.solve_exposure == self.solve_exposure
         assert out.solve_white_balance == self.solve_white_balance
+        assert out.use_chromatic_adaptation == self.use_chromatic_adaptation
         return out
 
     @property
@@ -75,12 +92,24 @@ class Parameters:
     def solve_white_balance(self) -> bool:
         return self._solve_white_balance
 
+    @property
+    def use_chromatic_adaptation(self) -> bool:
+        return self._use_chromatic_adaptation
+
+    @property
+    def matrix_preserve_white(self) -> bool:
+        return self._matrix_preserve_white
+
     def to_numpy_parameters(self) -> np.ndarray:
         """
         For Scipy, we need to be able to convert this to a numpy array
         with a minimal length.
         """
-        mat_params = self.matrix.mat[:, :2].reshape((6,))
+        if self.matrix_preserve_white:
+            mat_params = self.matrix.mat[:, :2].reshape((6,))
+        else:
+            # Grab all but the last one
+            mat_params = self.matrix.mat.reshape((9,))[:8]
         exposure_params = np.array(self.exposure)
         wb_params = np.array(
             [self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]]
@@ -98,15 +127,23 @@ class Parameters:
         out = self.copy()
         if self._solve_matrix:
             arr = np.zeros((3, 3))
-            arr[:, :2] = params[:6].reshape((3, 2))
-            arr[:, 2] = 1.0 - np.sum(arr[:, :2], axis=1)
+            if self.matrix_preserve_white:
+                arr[:, :2] = params[:6].reshape((3, 2))
+                arr[:, 2] = 1.0 - np.sum(arr[:, :2], axis=1)
+            else:
+                matrix_data = list(params[:8])
+                matrix_data.append(3.0 - np.sum(params[:8]))
+                arr = np.reshape(matrix_data, (3, 3))
             mat = color_conversions.ColorMatrix(
                 arr,
                 color_conversions.ImageState.RGB,
                 color_conversions.ImageState.RGB,
             )
             out.matrix = mat
-            params = params[6:]
+            if self.matrix_preserve_white:
+                params = params[6:]
+            else:
+                params = params[8:]
         if self._solve_exposure:
             out.exposure = params[0]
             params = params[1:]
@@ -209,14 +246,11 @@ def agg_cost_function(
         mat = parameters[0].matrix  # all charts share the same matrix.
         exp = parameter.exposure
         wb = parameter.white_balance
-        source_lab: color_conversions.LABChart = (
-            chart_pipeline(source_chart, exp, mat, wb)
-            .convert_to_xyz(target_gamut.get_conversion_to_xyz())
-            .chromatic_adaptation(
-                target_gamut.white.convert_to_xyz(), ref_chart.reference_white
-            )
-            .convert_to_lab(ref_chart.reference_white)
-        )
+        use_cat = parameter.use_chromatic_adaptation
+        source_xyz = chart_pipeline(source_chart, exp, mat, wb).convert_to_xyz(target_gamut.get_conversion_to_xyz())
+        if use_cat:
+            source_xyz = source_xyz.chromatic_adaptation(target_gamut.white.convert_to_xyz(), ref_chart.reference_white)
+        source_lab: color_conversions.LABChart = source_xyz.convert_to_lab(ref_chart.reference_white)
         de = ref_chart.compute_delta_e(source_lab)
         avg_de += de
     avg_de /= len(parameters)
