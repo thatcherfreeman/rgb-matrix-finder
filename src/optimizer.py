@@ -4,10 +4,18 @@ from scipy.optimize import minimize, OptimizeResult  # type:ignore
 from src.images import flatten
 from typing import Tuple, Optional, List
 
+from enum import Enum
+
+
+class MatrixConstraint(str, Enum):
+    PRESERVE_WHITE = "rows-sum-to-one"  # each row sums to one
+    PRESERVE_LUMINANCE = "row-two-sums-to-one"  # only second row sums to one
+    NORMALIZE_MATRIX = "matrix-sums-to-three"  # all nine entries sum to three
+
 
 class Parameters:
     _solve_matrix: bool
-    _matrix_preserve_white: bool
+    _matrix_constraint: MatrixConstraint
     matrix: color_conversions.ColorMatrix
     _solve_exposure: bool
     exposure: float
@@ -20,8 +28,8 @@ class Parameters:
         matrix: Optional[color_conversions.ColorMatrix] = None,
         exposure: Optional[float] = None,
         white_balance: Optional[color_conversions.ColorMatrix] = None,
-        use_chromatic_adaptation: Optional[bool] = None,
-        matrix_preserve_white: Optional[bool] = None,
+        use_chromatic_adaptation: bool = True,
+        matrix_constraint: MatrixConstraint = MatrixConstraint.PRESERVE_WHITE,
     ) -> None:
         """
         For each input, if None, then we will want to solve for this parameter.
@@ -56,15 +64,8 @@ class Parameters:
             self.white_balance = white_balance
             self._solve_white_balance = False
 
-        if use_chromatic_adaptation is None:
-            self._use_chromatic_adaptation = True
-        else:
-            self._use_chromatic_adaptation = use_chromatic_adaptation
-
-        if matrix_preserve_white is None:
-            self._matrix_preserve_white = True
-        else:
-            self._matrix_preserve_white = matrix_preserve_white
+        self._use_chromatic_adaptation = use_chromatic_adaptation
+        self._matrix_constraint = matrix_constraint
 
     def copy(self) -> "Parameters":
         out = Parameters(
@@ -72,7 +73,7 @@ class Parameters:
             self.exposure if not self.solve_exposure else None,
             self.white_balance.copy() if not self.solve_white_balance else None,
             self.use_chromatic_adaptation,
-            self.matrix_preserve_white,
+            self.matrix_constraint,
         )
         assert out.solve_matrix == self.solve_matrix
         assert out.solve_exposure == self.solve_exposure
@@ -97,21 +98,27 @@ class Parameters:
         return self._use_chromatic_adaptation
 
     @property
-    def matrix_preserve_white(self) -> bool:
-        return self._matrix_preserve_white
+    def matrix_constraint(self) -> bool:
+        return self._matrix_constraint
 
     def to_numpy_parameters(self) -> np.ndarray:
         """
         For Scipy, we need to be able to convert this to a numpy array
         with a minimal length.
         """
-        if self.matrix_preserve_white:
+        if self.matrix_constraint == MatrixConstraint.PRESERVE_WHITE:
             mat_params = self.matrix.mat[:, :2].reshape((6,))
-        else:
-            # Grab all but the last one
+        elif self.matrix_constraint == MatrixConstraint.PRESERVE_LUMINANCE:
+            # Grab all but entry number 5 (second row, third col)
             mat_params = self.matrix.mat.reshape((9,))
-            # mat_params = np.array(list(mat_params[:5]) + list(mat_params[6:]))
-            mat_params = mat_params[:8]
+            mat_params = np.array(list(mat_params[:5]) + list(mat_params[6:]))
+        elif self.matrix_constraint == MatrixConstraint.NORMALIZE_MATRIX:
+            # Grab all but the last one
+            mat_params = self.matrix.mat.reshape((9,))[:8]
+        else:
+            raise ValueError(
+                f"Unsupported matrix constraint: {self.matrix_constraint.value}"
+            )
         exposure_params = np.array(self.exposure)
         wb_params = np.array(
             [self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]]
@@ -129,12 +136,19 @@ class Parameters:
         out = self.copy()
         if self._solve_matrix:
             arr = np.zeros((3, 3))
-            if self.matrix_preserve_white:
+            if self.matrix_constraint == MatrixConstraint.PRESERVE_WHITE:
                 arr[:, :2] = params[:6].reshape((3, 2))
                 arr[:, 2] = 1.0 - np.sum(arr[:, :2], axis=1)
-            else:
+            elif self.matrix_constraint == MatrixConstraint.PRESERVE_LUMINANCE:
                 matrix_data = list(params[:8])
-                # matrix_data = matrix_data[:5] + [(1.0 - matrix_data[3] - matrix_data[4])] + matrix_data[5:]
+                matrix_data = (
+                    matrix_data[:5]
+                    + [(1.0 - matrix_data[3] - matrix_data[4])]
+                    + matrix_data[5:]
+                )
+                arr = np.reshape(matrix_data, (3, 3))
+            elif self.matrix_constraint == MatrixConstraint.NORMALIZE_MATRIX:
+                matrix_data = list(params[:8])
                 matrix_data.append(3.0 - np.sum(params[:8]))
                 arr = np.reshape(matrix_data, (3, 3))
             mat = color_conversions.ColorMatrix(
@@ -143,9 +157,12 @@ class Parameters:
                 color_conversions.ImageState.RGB,
             )
             out.matrix = mat
-            if self.matrix_preserve_white:
+            if self.matrix_constraint == MatrixConstraint.PRESERVE_WHITE:
                 params = params[6:]
-            else:
+            elif self.matrix_constraint in (
+                MatrixConstraint.PRESERVE_LUMINANCE,
+                MatrixConstraint.NORMALIZE_MATRIX,
+            ):
                 params = params[8:]
         if self._solve_exposure:
             out.exposure = params[0]

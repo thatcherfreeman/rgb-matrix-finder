@@ -47,10 +47,12 @@ def main() -> None:
         help="Set this flag to skip auto white balancing of your input image.",
     )
     parser.add_argument(
-        "--matrix-not-preserve-white",
-        action="store_true",
-        default=False,
-        help="Set this flag to drop the requirement that the matrix must preserve white (rows sum to 1, thus 1,1,1 input is mapped to 1,1,1 output). If set, this flag will only ensure that the entire matrix sums to 3.",
+        "--matrix-constraint",
+        default=optimizer.MatrixConstraint.PRESERVE_WHITE.value,
+        const=optimizer.MatrixConstraint.PRESERVE_WHITE.value,
+        nargs="?",
+        choices=[e.value for e in optimizer.MatrixConstraint],
+        help="Set this flag to determine what constraint the returned matrix must embody. (default: %(default)s)",
     )
     parser.add_argument(
         "--gamut-file",
@@ -160,6 +162,9 @@ def main() -> None:
             title=f"Input Image {i}",
         )
 
+    # Read matrix constraint from args
+    matrix_constraint = optimizer.MatrixConstraint(args.matrix_constraint)
+
     # Optimize
     if args.skip_auto_wb:
         # Fix the white balance gains at 1 1 1
@@ -172,7 +177,7 @@ def main() -> None:
         optimizer.Parameters(
             white_balance=initial_wb,
             use_chromatic_adaptation=not args.skip_chromatic_adaptation,
-            matrix_preserve_white=not args.matrix_not_preserve_white,
+            matrix_constraint=matrix_constraint,
         )
     ]
     if len(source_charts) > 1:
@@ -183,6 +188,7 @@ def main() -> None:
                     matrix=color_conversions.MATRIX_RGB_IDENTITY,
                     white_balance=initial_wb,
                     use_chromatic_adaptation=not args.skip_chromatic_adaptation,
+                    matrix_constraint=matrix_constraint,
                 )
             )
     parameters: List[optimizer.Parameters]
