@@ -170,7 +170,10 @@ def test_load_reference_chart_xyz() -> None:
     )
     assert (
         np.sum(
-            np.abs(xyz_chart_d65.colors[0] - np.array([[0.10653001, 0.09390262, 0.06469548]]))
+            np.abs(
+                xyz_chart_d65.colors[0]
+                - np.array([[0.10653001, 0.09390262, 0.06469548]])
+            )
         )
         < 0.0001
     )

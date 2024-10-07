@@ -109,7 +109,9 @@ class Parameters:
             mat_params = self.matrix.mat[:, :2].reshape((6,))
         else:
             # Grab all but the last one
-            mat_params = self.matrix.mat.reshape((9,))[:8]
+            mat_params = self.matrix.mat.reshape((9,))
+            # mat_params = np.array(list(mat_params[:5]) + list(mat_params[6:]))
+            mat_params = mat_params[:8]
         exposure_params = np.array(self.exposure)
         wb_params = np.array(
             [self.white_balance.mat[0, 0], self.white_balance.mat[2, 2]]
@@ -132,6 +134,7 @@ class Parameters:
                 arr[:, 2] = 1.0 - np.sum(arr[:, :2], axis=1)
             else:
                 matrix_data = list(params[:8])
+                # matrix_data = matrix_data[:5] + [(1.0 - matrix_data[3] - matrix_data[4])] + matrix_data[5:]
                 matrix_data.append(3.0 - np.sum(params[:8]))
                 arr = np.reshape(matrix_data, (3, 3))
             mat = color_conversions.ColorMatrix(
@@ -247,10 +250,16 @@ def agg_cost_function(
         exp = parameter.exposure
         wb = parameter.white_balance
         use_cat = parameter.use_chromatic_adaptation
-        source_xyz = chart_pipeline(source_chart, exp, mat, wb).convert_to_xyz(target_gamut.get_conversion_to_xyz())
+        source_xyz = chart_pipeline(source_chart, exp, mat, wb).convert_to_xyz(
+            target_gamut.get_conversion_to_xyz()
+        )
         if use_cat:
-            source_xyz = source_xyz.chromatic_adaptation(target_gamut.white.convert_to_xyz(), ref_chart.reference_white)
-        source_lab: color_conversions.LABChart = source_xyz.convert_to_lab(ref_chart.reference_white)
+            source_xyz = source_xyz.chromatic_adaptation(
+                target_gamut.white.convert_to_xyz(), ref_chart.reference_white
+            )
+        source_lab: color_conversions.LABChart = source_xyz.convert_to_lab(
+            ref_chart.reference_white
+        )
         de = ref_chart.compute_delta_e(source_lab)
         avg_de += de
     avg_de /= len(parameters)

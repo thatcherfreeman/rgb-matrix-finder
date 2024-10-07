@@ -84,15 +84,17 @@ def draw_samples(
     use_chromatic_adaptation: bool = True,
 ) -> np.ndarray:
     if isinstance(reference_chart, color_conversions.ReferenceChart):
-        reference_colors_xyz = reference_chart.convert_to_xyz(reference_chart.reference_white)
+        reference_colors_xyz = reference_chart.convert_to_xyz(
+            reference_chart.reference_white
+        )
         if use_chromatic_adaptation:
             reference_colors_xyz = reference_colors_xyz.chromatic_adaptation(
                 reference_chart.reference_white,
                 color_conversions.GAMUT_REC709.white.convert_to_xyz(),
             )
         reference_colors = reference_colors_xyz.convert_to_rgb(
-                color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()
-            ).colors
+            color_conversions.GAMUT_REC709.get_conversion_to_xyz().inverse()
+        ).colors
     elif isinstance(reference_chart, color_conversions.RGBChart):
         reference_colors = reference_chart.colors
     else:

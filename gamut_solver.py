@@ -50,7 +50,7 @@ def main() -> None:
         "--matrix-not-preserve-white",
         action="store_true",
         default=False,
-        help="Set this flag to drop the requirement that the matrix must preserve white (rows sum to 1, thus 1,1,1 input is mapped to 1,1,1 output). If set, this flag will only ensure that the entire matrix sums to 3."
+        help="Set this flag to drop the requirement that the matrix must preserve white (rows sum to 1, thus 1,1,1 input is mapped to 1,1,1 output). If set, this flag will only ensure that the entire matrix sums to 3.",
     )
     parser.add_argument(
         "--gamut-file",
@@ -62,7 +62,7 @@ def main() -> None:
         "--skip-chromatic-adaptation",
         action="store_true",
         default=False,
-        help="Set this flag to skip the process of chromatic adapting from the --target-gamut white point to the reference chart white point before computing delta-E."
+        help="Set this flag to skip the process of chromatic adapting from the --target-gamut white point to the reference chart white point before computing delta-E.",
     )
     args = parser.parse_args()
 
@@ -169,7 +169,11 @@ def main() -> None:
         initial_wb = None
 
     initial_parameters = [
-        optimizer.Parameters(white_balance=initial_wb, use_chromatic_adaptation=not args.skip_chromatic_adaptation, matrix_preserve_white=not args.matrix_not_preserve_white)
+        optimizer.Parameters(
+            white_balance=initial_wb,
+            use_chromatic_adaptation=not args.skip_chromatic_adaptation,
+            matrix_preserve_white=not args.matrix_not_preserve_white,
+        )
     ]
     if len(source_charts) > 1:
         for _ in source_charts[1:]:
@@ -200,9 +204,13 @@ def main() -> None:
         )
 
     if args.skip_chromatic_adaptation:
-        print(f"SKIPPING chromatic adaptation from target gamut white point {target_gamut.white.colors} to reference chart illuminants IE {ref_charts[0].reference_white.convert_to_xyy(ref_charts[0].reference_white).colors}")
+        print(
+            f"SKIPPING chromatic adaptation from target gamut white point {target_gamut.white.colors} to reference chart illuminants IE {ref_charts[0].reference_white.convert_to_xyy(ref_charts[0].reference_white).colors}"
+        )
     else:
-        print(f"APPLYING chromatic adaptation from target gamut white point {target_gamut.white.colors} to reference chart illuminants IE {ref_charts[0].reference_white.convert_to_xyy(ref_charts[0].reference_white).colors}")
+        print(
+            f"APPLYING chromatic adaptation from target gamut white point {target_gamut.white.colors} to reference chart illuminants IE {ref_charts[0].reference_white.convert_to_xyy(ref_charts[0].reference_white).colors}"
+        )
 
     # Measure results.
     mat = parameters[0].matrix
