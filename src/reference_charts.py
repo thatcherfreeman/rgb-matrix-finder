@@ -64,7 +64,7 @@ def load_reference_chart_txt(
     lines: List[str],
 ) -> Tuple[color_conversions.ReferenceChart, Tuple[int, int]]:
     # Parses the X-Rite color chart official specification
-    reference_white: color_conversions.XYZChart = color_conversions.STD_A  # default
+    reference_white: color_conversions.XYZChart = color_conversions.STD_D50  # default
     patches: List[List[float]] = []
     verified_lab = False
     highest_patch_coord = ("A", 0)
@@ -74,7 +74,8 @@ def load_reference_chart_txt(
         if matches is not None:
             groups = matches.groups()
             if groups[0] == "M0":
-                reference_white = color_conversions.STD_A
+                # reference_white = color_conversions.STD_A
+                reference_white = color_conversions.STD_D50 # Results seem better assuming the reference charts provided by xrite are all D50 tbh.
             elif groups[0] == "M1":
                 reference_white = color_conversions.STD_D50
             else:
