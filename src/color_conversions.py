@@ -351,6 +351,12 @@ GAMUT_AP0: Gamut = Gamut(
     blue=XYYChart(np.array([[0.0001, -0.0770, 1.0]])),
     white=XYYChart(np.array([[0.32168, 0.33767, 1.0]])),
 )
+GAMUT_AP1: Gamut = Gamut(
+    red=XYYChart(np.array([[0.713, 0.293, 1.0]])),
+    green=XYYChart(np.array([[0.165, 0.830, 1.0]])),
+    blue=XYYChart(np.array([[0.128, 0.044, 1.0]])),
+    white=XYYChart(np.array([[0.32168, 0.33767, 1.0]])),
+)
 GAMUT_REC709: Gamut = Gamut(
     red=XYYChart(np.array([[0.64, 0.33, 1.0]])),
     green=XYYChart(np.array([[0.30, 0.60, 1.0]])),

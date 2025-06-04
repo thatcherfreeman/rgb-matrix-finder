@@ -75,7 +75,9 @@ def load_reference_chart_txt(
             groups = matches.groups()
             if groups[0] == "M0":
                 # reference_white = color_conversions.STD_A
-                reference_white = color_conversions.STD_D50 # Results seem better assuming the reference charts provided by xrite are all D50 tbh.
+                reference_white = (
+                    color_conversions.STD_D50
+                )  # Results seem better assuming the reference charts provided by xrite are all D50 tbh.
             elif groups[0] == "M1":
                 reference_white = color_conversions.STD_D50
             else:
