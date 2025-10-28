@@ -106,14 +106,20 @@ class Gamut:
         m = xyz * s
         return ColorMatrix(m, ImageState.RGB, ImageState.XYZ)
 
-    def get_conversion_to_gamut(self, other: "Gamut") -> ColorMatrix:
+    def get_conversion_to_gamut(
+        self, other: "Gamut", chromatic_adaptation: bool = True
+    ) -> ColorMatrix:
         m1 = self.get_conversion_to_xyz()
         cat = ColorMatrix.get_chromatic_adaptation_matrix(
             self.white.convert_to_xyz(),
             other.white.convert_to_xyz(),
         )
         m2 = other.get_conversion_to_xyz().inverse()
-        m3 = m1.composite(cat).composite(m2)
+
+        if chromatic_adaptation:
+            m3 = m1.composite(cat).composite(m2)
+        else:
+            m3 = m1.composite(m2)
         return m3
 
     @staticmethod

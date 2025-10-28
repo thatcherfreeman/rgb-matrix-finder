@@ -30,17 +30,23 @@ def main():
         choices=gamuts.keys(),
         help="Choose a target color space for the matrix",
     )
+    parser.add_argument(
+        "--no-cat",
+        action="store_true",
+        help="Disable Chromatic Adaptation Transform (CAT02) when computing the conversion matrix",
+    )
     args = parser.parse_args()
 
     source_gamut = gamuts[args.source_gamut.upper()]
     target_gamut = gamuts[args.target_gamut.upper()]
+    chromatic_adaptation = not args.no_cat
 
     print(
         f"Computing conversion matrix from {args.source_gamut} to {args.target_gamut}..."
     )
 
     matrix: color_conversions.ColorMatrix = source_gamut.get_conversion_to_gamut(
-        target_gamut
+        target_gamut, chromatic_adaptation=chromatic_adaptation
     )
 
     print("Conversion Matrix:")
