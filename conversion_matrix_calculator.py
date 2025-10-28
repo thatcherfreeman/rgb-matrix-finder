@@ -8,13 +8,15 @@ def main():
     )
 
     gamuts = {
-        "DWG": color_conversions.GAMUT_DWG,
         "AP0": color_conversions.GAMUT_AP0,
         "AP1": color_conversions.GAMUT_AP1,
         "AWG3": color_conversions.GAMUT_AWG3,
         "AWG4": color_conversions.GAMUT_AWG4,
-        "XYZ": color_conversions.GAMUT_XYZ,
+        "DWG": color_conversions.GAMUT_DWG,
+        "KINEFINITY": color_conversions.GAMUT_KINEFINITY_WIDE_GAMUT,
         "REC709": color_conversions.GAMUT_REC709,
+        "REC2020": color_conversions.GAMUT_REC2020,
+        "XYZ": color_conversions.GAMUT_XYZ,
     }
 
     parser.add_argument(
