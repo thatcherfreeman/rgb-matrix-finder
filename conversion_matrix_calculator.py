@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 import src.color_conversions as color_conversions
-
+import numpy as np
 
 def main():
     parser = ArgumentParser(
@@ -14,6 +14,7 @@ def main():
         "AWG4": color_conversions.GAMUT_AWG4,
         "DWG": color_conversions.GAMUT_DWG,
         "KINEFINITY": color_conversions.GAMUT_KINEFINITY_WIDE_GAMUT,
+        "REC601": color_conversions.GAMUT_REC601,
         "REC709": color_conversions.GAMUT_REC709,
         "REC2020": color_conversions.GAMUT_REC2020,
         "XYZ": color_conversions.GAMUT_XYZ,
