@@ -345,11 +345,29 @@ STD_D50: XYZChart = XYYChart(
 ).convert_to_xyz()
 STD_E: XYZChart = XYZChart(colors=np.array([[1.0, 1.0, 1.0]]))
 
+GAMUT_APPLE_LOG2: Gamut = Gamut(
+    red=XYYChart(np.array([[0.725, 0.301, 1.0]])),
+    green=XYYChart(np.array([[0.221, 0.814, 1.0]])),
+    blue=XYYChart(np.array([[0.068, -0.076, 1.0]])),
+    white=XYYChart(np.array([[0.3127, 0.3290, 1.0]])),
+)
 GAMUT_DWG: Gamut = Gamut(
     red=XYYChart(np.array([[0.800, 0.3130, 1.0]])),
     green=XYYChart(np.array([[0.1682, 0.9877, 1.0]])),
     blue=XYYChart(np.array([[0.0790, -0.1155, 1.0]])),
     white=XYYChart(np.array([[0.3127, 0.3290, 1.0]])),
+)
+GAMUT_EGAMUT: Gamut = Gamut(
+    red=XYYChart(np.array([[0.8000, 0.3177, 1.0]])),
+    green=XYYChart(np.array([[0.1800, 0.9000, 1.0]])),
+    blue=XYYChart(np.array([[0.0650, -0.0805, 1.0]])),
+    white=XYYChart(np.array([[0.3127, 0.329, 1.0]])),
+)
+GAMUT_EGAMUT2: Gamut = Gamut(
+    red=XYYChart(np.array([[0.83, 0.31, 1.0]])),
+    green=XYYChart(np.array([[0.15, 0.95, 1.0]])),
+    blue=XYYChart(np.array([[0.065, -0.0805, 1.0]])),
+    white=XYYChart(np.array([[0.3127, 0.329, 1.0]])),
 )
 GAMUT_AP0: Gamut = Gamut(
     red=XYYChart(np.array([[0.7347, 0.2653, 1.0]])),

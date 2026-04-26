@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import src.color_conversions as color_conversions
 import numpy as np
 
+
 def main():
     parser = ArgumentParser(
         description="Computes the matrix to convert from one gamut to another. CAT02 Chromatic Adaptation is on by default."
@@ -10,9 +11,12 @@ def main():
     gamuts = {
         "AP0": color_conversions.GAMUT_AP0,
         "AP1": color_conversions.GAMUT_AP1,
+        "APPLE_LOG2": color_conversions.GAMUT_APPLE_LOG2,
         "AWG3": color_conversions.GAMUT_AWG3,
         "AWG4": color_conversions.GAMUT_AWG4,
         "DWG": color_conversions.GAMUT_DWG,
+        "EGAMUT": color_conversions.GAMUT_EGAMUT,
+        "EGAMUT2": color_conversions.GAMUT_EGAMUT2,
         "KINEFINITY": color_conversions.GAMUT_KINEFINITY_WIDE_GAMUT,
         "REC601": color_conversions.GAMUT_REC601,
         "REC709": color_conversions.GAMUT_REC709,
@@ -36,6 +40,12 @@ def main():
         action="store_true",
         help="Disable Chromatic Adaptation Transform (CAT02) when computing the conversion matrix",
     )
+    parser.add_argument(
+        "--digits",
+        type=int,
+        default=16,
+        help="Number of decimal digits to print (default: 10)",
+    )
     args = parser.parse_args()
 
     source_gamut = gamuts[args.source_gamut.upper()]
@@ -53,7 +63,7 @@ def main():
     print("Conversion Matrix:")
     print("{")
     for row in matrix.mat:
-        formatted_row = ", ".join(f"{v:.10f}" for v in row)
+        formatted_row = ", ".join(f"{v:.{args.digits}f}" for v in row)
         print(f"    {{{formatted_row}}},")
     print("}")
 
