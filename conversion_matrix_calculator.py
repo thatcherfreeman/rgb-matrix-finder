@@ -19,6 +19,7 @@ def main():
         "EGAMUT": color_conversions.GAMUT_EGAMUT,
         "EGAMUT2": color_conversions.GAMUT_EGAMUT2,
         "KINEFINITY": color_conversions.GAMUT_KINEFINITY_WIDE_GAMUT,
+        "P3D65": color_conversions.GAMUT_P3_D65,
         "REC601": color_conversions.GAMUT_REC601,
         "REC709": color_conversions.GAMUT_REC709,
         "REC2020": color_conversions.GAMUT_REC2020,
@@ -45,7 +46,7 @@ def main():
         "--digits",
         type=int,
         default=16,
-        help="Number of decimal digits to print (default: 10)",
+        help="Number of decimal digits to print (default: 16)",
     )
     args = parser.parse_args()
 
