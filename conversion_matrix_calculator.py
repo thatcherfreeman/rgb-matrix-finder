@@ -14,6 +14,7 @@ def main():
         "APPLE_LOG2": color_conversions.GAMUT_APPLE_LOG2,
         "AWG3": color_conversions.GAMUT_AWG3,
         "AWG4": color_conversions.GAMUT_AWG4,
+        "DLOG2": color_conversions.GAMUT_DLOG2,
         "DWG": color_conversions.GAMUT_DWG,
         "EGAMUT": color_conversions.GAMUT_EGAMUT,
         "EGAMUT2": color_conversions.GAMUT_EGAMUT2,

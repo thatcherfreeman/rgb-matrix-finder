@@ -351,6 +351,12 @@ GAMUT_APPLE_LOG2: Gamut = Gamut(
     blue=XYYChart(np.array([[0.068, -0.076, 1.0]])),
     white=XYYChart(np.array([[0.3127, 0.3290, 1.0]])),
 )
+GAMUT_DLOG2: Gamut = Gamut(
+    red=XYYChart(np.array([[ 0.7346787 ,  0.2653213, 1.0 ]])),
+    green=XYYChart(np.array([[ 0.15996793,  0.84003207, 1.0]])),
+    blue=XYYChart(np.array([[ 0.08999182, -0.07999273, 1.0]])),
+    white=XYYChart(np.array([[ 0.3127,  0.329, 1.0]])),
+)
 GAMUT_DWG: Gamut = Gamut(
     red=XYYChart(np.array([[0.800, 0.3130, 1.0]])),
     green=XYYChart(np.array([[0.1682, 0.9877, 1.0]])),
