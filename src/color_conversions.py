@@ -426,7 +426,7 @@ GAMUT_XYZ: Gamut = Gamut(
 GAMUT_KINEFINITY_WIDE_GAMUT: Gamut = Gamut(
     red=XYYChart(np.array([[0.7571, 0.2282, 1.0]])),
     green=XYYChart(np.array([[0.2139, 1.1480, 1.0]])),
-    blue=XYYChart(np.array([[0.0536, -0.2282, 1.0]])),
+    blue=XYYChart(np.array([[0.0536, -0.2236, 1.0]])),
     white=XYYChart(np.array([[0.3127, 0.3290, 1.0]])),
 )
 GAMUT_REC2020: Gamut = Gamut(
